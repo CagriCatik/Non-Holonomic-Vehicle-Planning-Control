@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import math
-from typing import Iterable, List, Tuple
+from typing import Iterable, Iterator, List, Tuple
 
 import numpy as np
+from non_holonomic_vehicle_planning.trajectory import sample_primitive
 
 from non_holonomic_vehicle_planning.planning.base import TrajectorySegment
 from non_holonomic_vehicle_planning.vehicle import wrap_angle
@@ -206,37 +207,88 @@ def _generate_rs_local_course(
     max_curvature: float,
     step_norm: float,
 ) -> Tuple[List[float], List[float], List[float], List[int]]:
-    origin_x, origin_y, origin_yaw = 0.0, 0.0, 0.0
-    xs: List[float] = []
-    ys: List[float] = []
-    yaws: List[float] = []
-    directions: List[int] = []
-
-    for seg_idx, (length, mode) in enumerate(zip(lengths, modes)):
-        if abs(length) <= 1e-9:
+    origin=(0.,0.,0.)
+    chunks=[[] for _ in range(4)]
+    for seg_idx,(length,mode) in enumerate(zip(lengths,modes)):
+        if abs(length)<=1e-9:
             continue
-        d_dist = step_norm if length >= 0.0 else -step_norm
-        start_d = 0.0 if seg_idx == 0 else d_dist
-        if (length >= 0.0 and start_d < length) or (length < 0.0 and start_d > length):
-            interp_dists = np.arange(start_d, length, d_dist)
-            interp_dists = np.append(interp_dists, length)
+        step=step_norm if length>=0 else -step_norm
+        start=0. if seg_idx==0 else step
+        if (length>=0 and start<length) or (length<0 and start>length):
+            distances=np.r_[np.arange(start,length,step),length]
         else:
-            interp_dists = np.array([length], dtype=float)
+            distances=np.array([length])
+        coordinates=sample_primitive(distances,mode,max_curvature,origin)
+        for chunk,values in zip(chunks[:3],coordinates):
+            chunk.append(values)
+        chunks[3].append(np.full(len(distances),1 if length>=0 else -1,dtype=int))
+        origin=tuple(float(values[-1]) for values in coordinates)
+    return tuple(np.concatenate(chunk) if chunk else np.array([]) for chunk in chunks)
 
-        for dist in interp_dists:
-            x, y, yaw, direction = _interpolate_rs(
-                float(dist), length, mode, max_curvature, origin_x, origin_y, origin_yaw
-            )
-            xs.append(x)
-            ys.append(y)
-            yaws.append(yaw)
-            directions.append(direction)
 
-        origin_x = xs[-1]
-        origin_y = ys[-1]
-        origin_yaw = yaws[-1]
+def iter_reeds_shepp_segments(
+    sx: float,
+    sy: float,
+    syaw: float,
+    gx: float,
+    gy: float,
+    gyaw: float,
+    curvatures: float | Iterable[float],
+    step: float = 0.2,
+) -> Iterator[TrajectorySegment]:
+    """Yield valid Reeds-Shepp curve segments between two poses, shortest first."""
+    if isinstance(curvatures, (int, float)):
+        curv_list = [float(curvatures)]
+    else:
+        curv_list = [float(c) for c in curvatures]
 
-    return xs, ys, yaws, directions
+    if not math.isfinite(step) or step<=0 or not curv_list or any(not math.isfinite(c) or c<=0 for c in curv_list):
+        raise ValueError("Connector step and curvature must be finite and positive")
+    dx = gx - sx
+    dy = gy - sy
+    dth = gyaw - syaw
+    c0, s0 = math.cos(syaw), math.sin(syaw)
+    lx_unit = c0 * dx + s0 * dy
+    ly_unit = -s0 * dx + c0 * dy
+
+    candidates = []
+
+    for maxc in curv_list:
+        x = lx_unit * maxc
+        y = ly_unit * maxc
+        step_norm = max(step * maxc, 1e-3)
+
+        cands: List[_RSPathCandidate] = []
+        cands = _scs(x, y, dth, cands, step_norm)
+        cands = _csc(x, y, dth, cands, step_norm)
+        cands = _ccc(x, y, dth, cands, step_norm)
+
+        candidates.extend((cand, maxc, step_norm) for cand in cands)
+
+    # Sampling is the expensive step, so it only happens for requested candidates.
+    candidates.sort(key=lambda c: c[0].L / c[1])
+    for cand, maxc, step_norm in candidates:
+        xs, ys, yaws, directions = _generate_rs_local_course(
+            cand.lengths, cand.ctypes, maxc, step_norm
+        )
+        if len(xs) < 2:
+            continue
+        xs_arr = np.asarray(xs, dtype=float)
+        ys_arr = np.asarray(ys, dtype=float)
+        gx_arr = c0 * xs_arr - s0 * ys_arr + sx
+        gy_arr = s0 * xs_arr + c0 * ys_arr + sy
+        gyaw_arr = (np.asarray(yaws)+syaw+np.pi)%(2*np.pi)-np.pi
+        dirs_arr = np.asarray(directions, dtype=int)
+
+        yield TrajectorySegment(
+            x=gx_arr,
+            y=gy_arr,
+            yaw=gyaw_arr,
+            direction=dirs_arr,
+            ctypes=cand.ctypes,
+            lengths=[l / maxc for l in cand.lengths],
+            total_length=cand.L / maxc,
+        )
 
 
 def plan_reeds_shepp_segments(
@@ -250,57 +302,7 @@ def plan_reeds_shepp_segments(
     step: float = 0.2,
 ) -> List[TrajectorySegment]:
     """Compute all valid Reeds-Shepp curve segments between two poses, sorted by path length."""
-    if isinstance(curvatures, (int, float)):
-        curv_list = [float(curvatures)]
-    else:
-        curv_list = [float(c) for c in curvatures]
-
-    dx = gx - sx
-    dy = gy - sy
-    dth = gyaw - syaw
-    c0, s0 = math.cos(syaw), math.sin(syaw)
-    lx_unit = c0 * dx + s0 * dy
-    ly_unit = -s0 * dx + c0 * dy
-
-    segments: List[TrajectorySegment] = []
-
-    for maxc in curv_list:
-        x = lx_unit * maxc
-        y = ly_unit * maxc
-        step_norm = max(step * maxc, 1e-3)
-
-        cands: List[_RSPathCandidate] = []
-        cands = _scs(x, y, dth, cands, step_norm)
-        cands = _csc(x, y, dth, cands, step_norm)
-        cands = _ccc(x, y, dth, cands, step_norm)
-
-        for cand in cands:
-            xs, ys, yaws, directions = _generate_rs_local_course(
-                cand.lengths, cand.ctypes, maxc, step_norm
-            )
-            if len(xs) < 2:
-                continue
-            xs_arr = np.asarray(xs, dtype=float)
-            ys_arr = np.asarray(ys, dtype=float)
-            gx_arr = c0 * xs_arr - s0 * ys_arr + sx
-            gy_arr = s0 * xs_arr + c0 * ys_arr + sy
-            gyaw_arr = np.array([wrap_angle(yaw + syaw) for yaw in yaws], dtype=float)
-            dirs_arr = np.asarray(directions, dtype=int)
-
-            segments.append(
-                TrajectorySegment(
-                    x=gx_arr,
-                    y=gy_arr,
-                    yaw=gyaw_arr,
-                    direction=dirs_arr,
-                    ctypes=cand.ctypes,
-                    lengths=[l / maxc for l in cand.lengths],
-                    total_length=cand.L / maxc,
-                )
-            )
-
-    segments.sort(key=lambda s: s.length)
-    return segments
+    return list(iter_reeds_shepp_segments(sx, sy, syaw, gx, gy, gyaw, curvatures, step))
 
 
 def reeds_shepp_path_planning(

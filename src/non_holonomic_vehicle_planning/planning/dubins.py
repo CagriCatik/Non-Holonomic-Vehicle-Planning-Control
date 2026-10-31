@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import math
-from typing import Iterable, List, Optional, Tuple
+from typing import Iterable, Iterator, List, Optional, Tuple
 
 import numpy as np
+from non_holonomic_vehicle_planning.trajectory import sample_primitive
 
 from non_holonomic_vehicle_planning.planning.base import TrajectorySegment
 from non_holonomic_vehicle_planning.vehicle import wrap_angle
@@ -140,28 +141,21 @@ def _generate_dubins_local_course(
     curvature: float,
     step_m: float,
 ) -> Tuple[List[float], List[float], List[float]]:
-    step_norm = max(step_m * curvature, 1e-3)
-    ox, oy, oyaw = 0.0, 0.0, 0.0
-    xs: List[float] = [0.0]
-    ys: List[float] = [0.0]
-    yaws: List[float] = [0.0]
-
-    for length, mode in zip(lengths, modes):
-        if length <= 1e-9:
+    step_norm = max(step_m*curvature,1e-3)
+    origin = (0.,0.,0.)
+    chunks = [[np.array([0.])] for _ in range(3)]
+    for length,mode in zip(lengths,modes):
+        if length<=1e-9:
             continue
-        dists = np.arange(step_norm, length, step_norm)
-        dists = np.append(dists, length)
-        for d in dists:
-            x, y, yaw = _interpolate_dubins_segment(float(d), mode, curvature, ox, oy, oyaw)
-            xs.append(x)
-            ys.append(y)
-            yaws.append(yaw)
-        ox, oy, oyaw = xs[-1], ys[-1], yaws[-1]
-
-    return xs, ys, yaws
+        distances=np.r_[np.arange(step_norm,length,step_norm),length]
+        coordinates=sample_primitive(distances,mode,curvature,origin)
+        for chunk,values in zip(chunks,coordinates):
+            chunk.append(values)
+        origin=tuple(float(values[-1]) for values in coordinates)
+    return tuple(np.concatenate(chunk) for chunk in chunks)
 
 
-def plan_dubins_segments(
+def iter_dubins_segments(
     sx: float,
     sy: float,
     syaw: float,
@@ -170,13 +164,15 @@ def plan_dubins_segments(
     gyaw: float,
     curvatures: float | Iterable[float],
     step: float = 0.2,
-) -> List[TrajectorySegment]:
-    """Compute all valid Dubins curve segments between two poses, sorted by path length."""
+) -> Iterator[TrajectorySegment]:
+    """Yield valid Dubins curve segments between two poses, shortest first."""
     if isinstance(curvatures, (int, float)):
         curv_list = [float(curvatures)]
     else:
         curv_list = [float(c) for c in curvatures]
 
+    if not math.isfinite(step) or step<=0 or not curv_list or any(not math.isfinite(c) or c<=0 for c in curv_list):
+        raise ValueError("Connector step and curvature must be finite and positive")
     dx = gx - sx
     dy = gy - sy
     c0, s0 = math.cos(syaw), math.sin(syaw)
@@ -190,7 +186,7 @@ def plan_dubins_segments(
     alpha = _mod2pi(-theta)
     beta = _mod2pi(lyaw - theta)
 
-    segments: List[TrajectorySegment] = []
+    candidates = []
 
     for curv in curv_list:
         d = D * curv
@@ -202,31 +198,44 @@ def plan_dubins_segments(
             total_len_m = (abs(t) + abs(p) + abs(q)) / curv
             if total_len_m <= 1e-4:
                 continue
+            candidates.append((total_len_m, curv, lengths_norm, mode))
 
-            xs_loc, ys_loc, yaws_loc = _generate_dubins_local_course(lengths_norm, mode, curv, step)
-            xs_arr = np.asarray(xs_loc, dtype=float)
-            ys_arr = np.asarray(ys_loc, dtype=float)
+    # Sampling is the expensive step, so it only happens for requested candidates.
+    candidates.sort(key=lambda c: c[0])
+    for total_len_m, curv, lengths_norm, mode in candidates:
+        xs_loc, ys_loc, yaws_loc = _generate_dubins_local_course(lengths_norm, mode, curv, step)
+        xs_arr = np.asarray(xs_loc, dtype=float)
+        ys_arr = np.asarray(ys_loc, dtype=float)
 
-            # Transform back to global frame
-            gx_arr = c0 * xs_arr - s0 * ys_arr + sx
-            gy_arr = s0 * xs_arr + c0 * ys_arr + sy
-            gyaw_arr = np.array([wrap_angle(yaw + syaw) for yaw in yaws_loc], dtype=float)
-            dirs_arr = np.ones(len(gx_arr), dtype=int)
+        # Transform back to global frame
+        gx_arr = c0 * xs_arr - s0 * ys_arr + sx
+        gy_arr = s0 * xs_arr + c0 * ys_arr + sy
+        gyaw_arr = (np.asarray(yaws_loc)+syaw+np.pi)%(2*np.pi)-np.pi
+        dirs_arr = np.ones(len(gx_arr), dtype=int)
 
-            segments.append(
-                TrajectorySegment(
-                    x=gx_arr,
-                    y=gy_arr,
-                    yaw=gyaw_arr,
-                    direction=dirs_arr,
-                    ctypes=mode,
-                    lengths=[l / curv for l in lengths_norm],
-                    total_length=total_len_m,
-                )
-            )
+        yield TrajectorySegment(
+            x=gx_arr,
+            y=gy_arr,
+            yaw=gyaw_arr,
+            direction=dirs_arr,
+            ctypes=mode,
+            lengths=[l / curv for l in lengths_norm],
+            total_length=total_len_m,
+        )
 
-    segments.sort(key=lambda s: s.length)
-    return segments
+
+def plan_dubins_segments(
+    sx: float,
+    sy: float,
+    syaw: float,
+    gx: float,
+    gy: float,
+    gyaw: float,
+    curvatures: float | Iterable[float],
+    step: float = 0.2,
+) -> List[TrajectorySegment]:
+    """Compute all valid Dubins curve segments between two poses, sorted by path length."""
+    return list(iter_dubins_segments(sx, sy, syaw, gx, gy, gyaw, curvatures, step))
 
 
 def plan_dubins_path(

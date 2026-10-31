@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import math
+import copy
 from pathlib import Path
 import time
 from typing import List, Optional, Tuple
@@ -17,6 +18,7 @@ from non_holonomic_vehicle_planning.planning.base import PlannedPath
 from non_holonomic_vehicle_planning.planning.realtime import PlannerMode, RealTimePlanner
 from non_holonomic_vehicle_planning.scenario import Scenario
 from non_holonomic_vehicle_planning.vehicle import wrap_angle
+from non_holonomic_vehicle_planning.trajectory import geometry, profile_speed, inspect_path
 
 
 @dataclass
@@ -63,6 +65,13 @@ class SimulationResult:
     planned_length_m: float = 0.0
     simulated_length_m: float = 0.0
     reached_goal: bool = False
+    termination_reason: str = "time_limit"
+    telemetry: dict = field(default_factory=dict)
+
+    def export(self, destination):
+        """Write aligned CSV rows and strict JSON metrics (SI units)."""
+        from non_holonomic_vehicle_planning.evaluation import export_result
+        return export_result(self, destination)
 
 
 class SimulationRunner:
@@ -87,6 +96,13 @@ class SimulationRunner:
         if base_path is None or len(base_path.x) < 2:
             raise ValueError("Scenario has no planned path to simulate.")
 
+        if scenario.goal is not None:
+            gx,gy,gyaw = scenario.goal_pose_rad
+            if (math.hypot(base_path.x[-1]-gx,base_path.y[-1]-gy)>1e-3
+                    or abs(wrap_angle(base_path.yaw[-1]-gyaw))>1e-3):
+                raise ValueError("Planned endpoint does not match the configured goal pose")
+        if not inspect_path(base_path,scenario.vehicle)["curvature_feasible"]:
+            raise ValueError("Reference curvature exceeds physical steering limit")
         cfg = self.mpc_config
         veh = scenario.vehicle
         controller = MPCController(config=cfg, vehicle=veh)
@@ -96,8 +112,8 @@ class SimulationRunner:
         initial_rx = base_path.x.copy()
         initial_ry = base_path.y.copy()
 
-        sp = calc_speed_profile(
-            active_path.x, active_path.y, active_path.yaw, cfg.target_speed, active_path.reversing
+        sp = profile_speed(
+            active_path.x, active_path.y, active_path.yaw, active_path.reversing, cfg.target_speed, veh.max_accel, cfg.max_lateral_accel, veh.max_steer_rate, veh.wheelbase
         )
         ref_path = ReferencePath(active_path.x, active_path.y, active_path.yaw, active_path.reversing)
 
@@ -135,10 +151,23 @@ class SimulationRunner:
         bypasses_hist: List[Optional[Tuple[np.ndarray, np.ndarray]]] = [None]
         replan_count = 0
 
+        columns = ("wall_time_s", "target_speed_m_s", "accel_cmd_m_s2", "accel_actual_m_s2",
+                   "steer_cmd_rad", "steer_rate_rad_s", "steer_accel_rad_s2", "reference_index",
+                   "progress_m", "reference_curvature_m_inv", "replan_event", "path_revision",
+                   "solver_status", "solver_iterations", "solver_runtime_s", "control_runtime_s", "sqp_iterations", "sqp_status",
+                   "solver_fallback", "static_clearance_m", "static_collision", "dynamic_collision", "goal_reached")
+        telemetry = {name: ["not_run" if name in ("solver_status","sqp_status") else 0.] for name in columns}
+        telemetry["static_clearance_m"][0] = self._static_clearance(scenario,state)
+        revision = 0
+        progress_offset = 0.
+        total_progress = 0.
+        _, curvature = geometry(active_path.x,active_path.y,active_path.yaw,active_path.reversing)
+
         a_opt: Optional[np.ndarray] = None
         delta_opt: Optional[np.ndarray] = None
         sim_time = 0.0
         reached_goal = False
+        termination_reason = "time_limit"
 
         t0_wall = time.perf_counter()
 
@@ -152,19 +181,37 @@ class SimulationRunner:
                 nominal_speed=cfg.target_speed,
             )
             if rt_info.replan_triggered:
+                revision += 1
+                previous_progress = total_progress
+                previous_index = ref_path.ind_old
                 replan_count += 1
                 active_path = new_path
-                scenario.set_planned_path(active_path)
-                sp = calc_speed_profile(
-                    active_path.x, active_path.y, active_path.yaw, cfg.target_speed, active_path.reversing
+                sp = profile_speed(
+                    active_path.x, active_path.y, active_path.yaw, active_path.reversing, cfg.target_speed, veh.max_accel, cfg.max_lateral_accel, veh.max_steer_rate, veh.wheelbase
                 )
                 ref_path = ReferencePath(active_path.x, active_path.y, active_path.yaw, active_path.reversing)
                 dists_all = np.hypot(ref_path.cx - state.x, ref_path.cy - state.y)
-                ref_path.ind_old = int(np.argmin(dists_all))
+                lo = max(0,previous_index-cfg.search_window)
+                hi = min(len(dists_all),previous_index+cfg.search_window+1)
+                ref_path.ind_old = lo+int(np.argmin(dists_all[lo:hi]))
+                ref_path.active_cusp_ptr = int(np.searchsorted(ref_path.cusp_ends,ref_path.ind_old,side="left"))
+                ref_path.progress_s = float(ref_path.s[ref_path.ind_old])
+                # The traversed prefix may meet the bypass with a kink; only what lies ahead may limit speed.
+                ahead = min(ref_path.ind_old+1,len(active_path.x)-2)
+                sp[ahead:] = profile_speed(
+                    active_path.x[ahead:], active_path.y[ahead:], active_path.yaw[ahead:], active_path.reversing[ahead:], cfg.target_speed, veh.max_accel, cfg.max_lateral_accel, veh.max_steer_rate, veh.wheelbase
+                )
+                sp[:ahead] = sp[ahead]
+                progress_offset = previous_progress-ref_path.progress_s
+                _, curvature = geometry(active_path.x,active_path.y,active_path.yaw,active_path.reversing)
+                a_opt = delta_opt = None
 
             # 2. Compute Reference Horizon for Linear MPC
             z_ref, target_ind, lat_err = ref_path.calc_ref_trajectory(state, sp, cfg)
             if rt_info.speed_scale < 0.999:
+                indices = np.arange(cfg.horizon+1)
+                for component in (0,1,3):
+                    z_ref[component] = np.interp(indices*rt_info.speed_scale,indices,z_ref[component])
                 z_ref[2, :] *= rt_info.speed_scale
 
             z0 = [
@@ -176,25 +223,34 @@ class SimulationRunner:
                 state.steer_rate,
                 state.accel,
             ]
-            a_opt, delta_opt, x_opt, y_opt, _, _ = controller.step(z_ref, z0, a_opt, delta_opt)
+            a_opt, delta_opt, x_opt, y_opt, _, _ = controller.step(z_ref, z0, a_opt, delta_opt, ref_path.steering_hold)
 
             a_exc = float(a_opt[0]) if a_opt is not None else 0.0
             delta_exc = float(delta_opt[0]) if delta_opt is not None else 0.0
 
-            # Enforce smooth, exact zero-overshoot braking if yielding to a pedestrian right ahead
-            if rt_info.mode == "YIELD_STOP" and rt_info.speed_scale <= 0.05:
-                if state.v > 1e-3:
-                    a_exc = -min(veh.max_accel, state.v / cfg.dt)
-                elif state.v < -1e-3:
-                    a_exc = min(veh.max_accel, -state.v / cfg.dt)
-                else:
-                    a_exc = 0.0
-                    state.v = 0.0
-
+            previous_rate = state.steer_rate
             state.update(a_exc, delta_exc, direct=1.0, dt=cfg.dt)
             sim_time += cfg.dt
 
-            head_err = wrap_angle(state.yaw - float(z_ref[3, 0]))
+            measured_ref = copy.copy(ref_path)
+            measured_index, lat_err = measured_ref.nearest_index(state,cfg.search_window,cfg.speed_stop)
+            head_err = wrap_angle(state.yaw-measured_ref.projected_yaw)
+            total_progress = max(total_progress,progress_offset+measured_ref.progress_s)
+            values = dict(wall_time_s=time.perf_counter()-t0_wall,target_speed_m_s=z_ref[2,0],
+                accel_cmd_m_s2=state.accel_cmd,accel_actual_m_s2=state.accel,
+                steer_cmd_rad=state.steer_cmd,steer_rate_rad_s=state.steer_rate,
+                steer_accel_rad_s2=(state.steer_rate-previous_rate)/cfg.dt,
+                reference_index=measured_index,progress_m=total_progress,
+                reference_curvature_m_inv=curvature[measured_index],replan_event=rt_info.replan_triggered,
+                path_revision=revision,solver_status=controller.last_solver_status,
+                solver_iterations=controller.last_solver_iterations,solver_runtime_s=controller.last_solver_runtime_s,
+                control_runtime_s=controller.last_control_runtime_s,
+                sqp_iterations=controller.last_sqp_iterations,sqp_status=controller.last_sqp_status,solver_fallback=controller.last_fallback,
+                static_clearance_m=self._static_clearance(scenario,state),goal_reached=False,
+                static_collision=self._static_clearance(scenario,state)<=0.,
+                dynamic_collision=scenario.min_dynamic_clearance_at(state.x,state.y,state.yaw,sim_time)<=0.)
+            for key in columns:
+                telemetry[key].append(values[key])
             is_rev = (state.v < -0.05) or (abs(state.v) <= 0.05 and bool(active_path.reversing[target_ind]))
             dyn_clear = scenario.min_dynamic_clearance_at(state.x, state.y, state.yaw, sim_time)
 
@@ -224,13 +280,16 @@ class SimulationRunner:
             ref_horizon_x_hist.append(z_ref[0, :].copy())
             ref_horizon_y_hist.append(z_ref[1, :].copy())
 
+            if values["static_collision"] or values["dynamic_collision"]:
+                termination_reason = "collision"
+                break
             on_final_segment = ref_path.active_cusp_ptr >= len(ref_path.cusp_ends) - 1
             dist_to_goal = math.hypot(state.x - float(active_path.x[-1]), state.y - float(active_path.y[-1]))
-            if on_final_segment and dist_to_goal < cfg.dist_stop and abs(state.v) < cfg.speed_stop:
+            if (on_final_segment and dist_to_goal < cfg.dist_stop and abs(state.v) < cfg.speed_stop
+                    and abs(wrap_angle(state.yaw-float(active_path.yaw[-1]))) < cfg.heading_stop):
                 reached_goal = True
-                break
-            if on_final_segment and target_ind >= len(active_path.x) - 3 and dist_to_goal < 1.35 * cfg.dist_stop:
-                reached_goal = True
+                termination_reason = "goal"
+                telemetry["goal_reached"][-1] = True
                 break
 
         wall_time = time.perf_counter() - t0_wall
@@ -272,7 +331,17 @@ class SimulationRunner:
             planned_length_m=active_path.length,
             simulated_length_m=sim_len,
             reached_goal=reached_goal,
+            termination_reason=termination_reason,
+            telemetry={key: np.asarray(value) for key,value in telemetry.items()},
         )
+
+    @staticmethod
+    def _static_clearance(scenario, state):
+        footprint = scenario.vehicle.footprint_polygon(state.x,state.y,state.yaw)
+        obstacles = list(scenario.obstacles)
+        if scenario.boundary is not None:
+            obstacles.append(scenario.boundary)
+        return min((float(footprint.distance(obstacle)) for obstacle in obstacles),default=float("inf"))
 
 
 def run_simulation(
@@ -301,6 +370,9 @@ def run_simulation(
         mean_lat = float(np.mean(result.replan_latencies_ms))
         print(f"[{name}] Real-Time Replans Triggered: {result.replan_count} (avg step latency: {mean_lat:.2f} ms)")
         print(f"[{name}] Min Dynamic Obstacle Clear.: {min_clr:.2f} m")
+
+    export_stem = Path(plot_output_path).with_suffix("") if plot_output_path is not None else Path("plots") / name
+    result.export(export_stem)
 
     if plot_output_path is not None:
         plot_simulation_summary(result, output_path=plot_output_path, vis_config=vis_config)

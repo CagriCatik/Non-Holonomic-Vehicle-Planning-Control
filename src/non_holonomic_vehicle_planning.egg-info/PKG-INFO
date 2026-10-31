@@ -20,6 +20,7 @@ Requires-Dist: pytest>=8.0; extra == "test"
 ![Motion planning](https://img.shields.io/badge/Motion%20planning-RRT%2A-5B8DEF)
 ![Controller](https://img.shields.io/badge/Controller-Linear%20MPC-8A63D2)
 ![Status](https://img.shields.io/badge/Status-Active%20development-orange)
+![GitHub](https://img.shields.io/badge/GitHub-Not%20published-lightgrey?logo=github)
 
 A Python toolkit for non-holonomic vehicle path planning, trajectory tracking, and animated 2D simulation. It combines Dubins and Reeds–Shepp motion planning, RRT*, real-time obstacle avoidance, an MPC controller, and vehicle-level steering and drive actuator dynamics.
 
@@ -38,6 +39,16 @@ A Python toolkit for non-holonomic vehicle path planning, trajectory tracking, a
 ![Parallel parking simulation](plots/ParallelParking_Scenario_ReedShepp.gif)
 
 ![Parallel parking summary plot](plots/ParallelParking_Scenario_ReedShepp.png)
+
+### Urban crossing — real-time avoidance
+
+![Urban crossing simulation](plots/Urban_Pedestrian_Crossing_RealTime.gif)
+
+![Urban crossing summary plot](plots/Urban_Pedestrian_Crossing_RealTime.png)
+
+### RRT* search-tree growth
+
+![RRT* tree growth](plots/Street_Scenario_ReedsShepp_RRT_Tree.gif)
 
 The `plots/` directory contains generated scenario animations, summary dashboards, and (when enabled) RRT* tree-growth animations. Run the benchmark below to regenerate the complete set.
 
@@ -125,8 +136,8 @@ scenario_yaml = "configs/scenarios/custom_crossing.yaml"
 creator = (
     ScenarioCreator("Custom_Crossing", width=60.0, height=36.0)
     .set_start_goal((6.5, 13.5), 0.0, (53.0, 14.5), 0.0)
-    .add_wall(bottom_left=(0.0, 0.0), width=60.0, height=6.0)
-    .add_wall(bottom_left=(0.0, 30.0), width=60.0, height=6.0)
+    .add_rectangle_obstacle(60.0, 6.0, (0.0, 0.0))
+    .add_rectangle_obstacle(60.0, 6.0, (0.0, 30.0))
     .add_moving_vehicle(
         "lead_car",
         start=(20.0, 13.5),

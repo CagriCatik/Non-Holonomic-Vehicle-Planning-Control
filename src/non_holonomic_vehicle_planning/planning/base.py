@@ -26,10 +26,16 @@ class TrajectorySegment:
     _linestring: LineString | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
-        self.x = np.asarray(self.x, dtype=float)
-        self.y = np.asarray(self.y, dtype=float)
-        self.yaw = np.asarray(self.yaw, dtype=float)
-        self.direction = np.asarray(self.direction, dtype=int)
+        self.x = np.array(self.x, dtype=float, copy=True)
+        self.y = np.array(self.y, dtype=float, copy=True)
+        self.yaw = np.array(self.yaw, dtype=float, copy=True)
+        self.direction = np.array(self.direction, dtype=int, copy=True)
+        if any(a.ndim != 1 or len(a) != len(self.x) for a in (self.x,self.y,self.yaw,self.direction)):
+            raise ValueError("Path arrays must have matching one-dimensional shapes")
+        if not np.all(np.isfinite(np.r_[self.x,self.y,self.yaw])) or np.any(~np.isin(self.direction,[-1,1])):
+            raise ValueError("Path requires finite values and directions +/-1")
+        for array in (self.x,self.y,self.yaw,self.direction):
+            array.flags.writeable = False
         if self.total_length <= 0.0 and self.x.size >= 2:
             self.total_length = float(np.sum(np.hypot(np.diff(self.x), np.diff(self.y))))
 
@@ -62,10 +68,16 @@ class PlannedPath:
     segments: List[TrajectorySegment] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        self.x = np.asarray(self.x, dtype=float)
-        self.y = np.asarray(self.y, dtype=float)
-        self.yaw = np.asarray(self.yaw, dtype=float)
-        self.direction = np.asarray(self.direction, dtype=int)
+        self.x = np.array(self.x, dtype=float, copy=True)
+        self.y = np.array(self.y, dtype=float, copy=True)
+        self.yaw = np.array(self.yaw, dtype=float, copy=True)
+        self.direction = np.array(self.direction, dtype=int, copy=True)
+        if any(a.ndim != 1 or len(a) != len(self.x) for a in (self.x,self.y,self.yaw,self.direction)):
+            raise ValueError("Path arrays must have matching one-dimensional shapes")
+        if not np.all(np.isfinite(np.r_[self.x,self.y,self.yaw])) or np.any(~np.isin(self.direction,[-1,1])):
+            raise ValueError("Path requires finite values and directions +/-1")
+        for array in (self.x,self.y,self.yaw,self.direction):
+            array.flags.writeable = False
 
     @property
     def reversing(self) -> np.ndarray:
@@ -124,6 +136,8 @@ class PlannedPath:
 
     def resample_uniform(self, step: float = 0.2) -> "PlannedPath":
         """Resample path so consecutive points within each gear segment have uniform arc-length spacing."""
+        if not math.isfinite(step) or step <= 0:
+            raise ValueError("Resampling step must be finite and positive")
         if len(self.x) < 2:
             return self
 

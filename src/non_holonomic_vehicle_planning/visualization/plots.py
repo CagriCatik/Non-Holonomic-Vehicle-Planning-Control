@@ -395,6 +395,8 @@ def plot_simulation_summary(
     # Telemetry Panel 1: Speed & Driving Direction
     v_kmh = result.v * 3.6
     ax_v.axhline(0.0, color=TEXT_MUTED, ls=":", lw=1.0)
+    if "target_speed_m_s" in result.telemetry:
+        ax_v.plot(result.t,result.telemetry["target_speed_m_s"]*3.6,ls="--",lw=1,label="Target [km/h]")
     ax_v.plot(result.t, v_kmh, color=ACCENT_CYAN, lw=1.8, label="Speed v [km/h]")
     ax_v.fill_between(result.t, 0.0, v_kmh, where=(v_kmh >= 0), color=ACCENT_EMERALD, alpha=0.18, label="FWD")
     if np.any(v_kmh < 0):
@@ -408,6 +410,8 @@ def plot_simulation_summary(
     ax_s.axhline(0.0, color=TEXT_MUTED, ls=":", lw=1.0)
     ax_s.axhline(max_steer_deg, color=ACCENT_ROSE, ls="--", lw=0.9, alpha=0.6, label=f"±{max_steer_deg:.0f}° Limit")
     ax_s.axhline(-max_steer_deg, color=ACCENT_ROSE, ls="--", lw=0.9, alpha=0.6)
+    if "steer_cmd_rad" in result.telemetry:
+        ax_s.plot(result.t,np.degrees(result.telemetry["steer_cmd_rad"]),ls="--",lw=1,label="Command [deg]")
     ax_s.plot(result.t, steer_deg, color=ACCENT_AMBER, lw=1.8, label="Radeinschlag δ [deg]")
     style_axis(ax_s, "Radeinschlag / Vorderachslenkwinkel (Front Steer δ)", None, "δ [deg]")
     ax_s.legend(loc="upper right", fontsize=7.5)
@@ -511,19 +515,18 @@ def plot_urban_variants_comparison(
     style_axis(ax_clr, "Minimaler Abstand zu dyn. Hindernissen (Clearance)", "Time t [s]", "Clearance [m]")
     ax_clr.legend(loc="upper right", fontsize=7.2)
 
-    ax_steer.axhline(45.0, color=ACCENT_ROSE, ls="--", lw=0.9, alpha=0.6)
-    ax_steer.axhline(-45.0, color=ACCENT_ROSE, ls="--", lw=0.9, alpha=0.6)
+    steer_limit = min(math.degrees(r.scenario.vehicle.max_steer) for r in results)
+    ax_steer.axhline(steer_limit, color=ACCENT_ROSE, ls="--", lw=0.9, alpha=0.6)
+    ax_steer.axhline(-steer_limit, color=ACCENT_ROSE, ls="--", lw=0.9, alpha=0.6)
     style_axis(ax_steer, "Vorderachs-Radeinschlag im Vergleich (Steer δ(t))", "Time t [s]", "δ [deg]")
 
     summary_rows.extend([
         "-" * 74,
-        "KEY ENGINEERING TAKEAWAYS:",
-        "1. 100% Goal Achievement: All 5 variants reach the Goal (52.5, 45.0) safely.",
-        "2. Real-Time Capability : Mean step latency is < 16 ms (> 60 Hz control rate).",
-        "3. Multi-Mode Autonomy  : V1/V2/V4/V5 execute smooth C² Frenet S-curve bypasses",
-        "   (AVOID_BYPASS), while V3 brakes smoothly for pedestrians (YIELD_STOP) and",
-        "   automatically resumes once the crosswalk is clear.",
-        "4. Multi-Disk Inflation : Minimum dynamic clearance stays >= 1.25 m at all times.",
+        "MEASURED RESULTS:",
+        f"Goals reached: {sum(r.reached_goal for r in results)}/{len(results)}",
+        f"Replans: {sum(r.replan_count for r in results)}",
+        f"Minimum dynamic clearance: {min(float(np.min(r.min_dynamic_clearances_m)) for r in results):.3f} m",
+        "Latency refers to planner steps; full control runtime is exported separately.",
     ])
 
     ax_table.text(

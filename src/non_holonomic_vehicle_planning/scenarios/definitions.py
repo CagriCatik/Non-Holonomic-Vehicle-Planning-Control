@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, Optional, Tuple
 
-from non_holonomic_vehicle_planning.config import get_configs_dir
+from non_holonomic_vehicle_planning.config import get_configs_dir, load_config
 from non_holonomic_vehicle_planning.obstacles import ObstacleBuilder
 from non_holonomic_vehicle_planning.planning.rrt import ConnectorType, PlannerConfig, RRTStarPlanner
 from non_holonomic_vehicle_planning.scenario import Scenario
@@ -98,7 +98,8 @@ def build_parallel_parking_scenario(reeds_shepp: bool = True) -> Scenario:
     )
     sc.set_vehicle(1.0 / 4.39, length=4.5, width=2.0)
     sc.set_obstacles(builder.build())
-    sc.set_start_goal((5.0, 5.0), 90.0, (13.0, 28.25), 90.0)
+    # Goal is the rear axle: half a wheelbase behind the bay center at y = 28.25.
+    sc.set_start_goal((5.0, 5.0), 90.0, (13.0, 26.8), 90.0)
     return sc
 
 
@@ -134,7 +135,8 @@ def build_parking_lot_scenario(boundary_collision: bool = True) -> Scenario:
     )
     sc.set_vehicle(1.0 / 4.39, length=4.5, width=2.0)
     sc.set_obstacles(builder.build())
-    sc.set_start_goal((16.0, 2.75), 90.0, (19.0, 46.75), 90.0)
+    # Goal is the rear axle: half a wheelbase behind the bay center at y = 46.75.
+    sc.set_start_goal((16.0, 2.75), 90.0, (19.0, 45.3), 90.0)
     return sc
 
 
@@ -285,18 +287,30 @@ def resolve_scenario_key(name: str) -> str:
     )
 
 
+def _apply_configuration(scenario, config):
+    """Bind physical configuration before planning, collision setup and control."""
+    scenario.vehicle = config.vehicle
+    scenario.vehicle_length = config.vehicle.length
+    scenario.vehicle_width = config.vehicle.width
+    scenario.max_curvature = config.vehicle.curvature_candidates
+    scenario.set_inflation(config.inflation)
+
+
 def load_or_plan_scenario(
     name: str,
     replan: bool = False,
     iterations: Optional[int] = None,
     seed: Optional[int] = 42,
     saved_dir: str | Path = "./Saved_scenarios",
+    config_path: Optional[str | Path] = None,
 ) -> Tuple[Scenario, ScenarioSpec]:
     """Build a scenario (or load a custom YAML file) and compute or load its baseline trajectory."""
     # Support passing a direct path to a YAML file
     if name.endswith((".yaml", ".yml")) or Path(name).exists():
         creator = ScenarioCreator.from_yaml(name)
         scenario = creator.build()
+        if config_path is not None:
+            _apply_configuration(scenario,load_config(config_path))
         pl_cfg = creator.raw_config.get("planner", {})
         conn: ConnectorType = pl_cfg.get("connector", "reeds_shepp")
         n_iter = iterations or int(pl_cfg.get("max_iterations", 800))
@@ -326,6 +340,8 @@ def load_or_plan_scenario(
     key = resolve_scenario_key(name)
     spec = SCENARIO_SPECS[key]
     scenario = spec.factory()
+    effective = load_config(config_path or (get_configs_dir()/"scenarios"/spec.yaml_file if spec.yaml_file else None))
+    _apply_configuration(scenario,effective)
 
     csv_file = (Path(saved_dir) / f"{spec.base_name}_Path_{spec.csv_suffix}") if spec.csv_suffix else None
     if not replan and csv_file is not None and csv_file.exists():

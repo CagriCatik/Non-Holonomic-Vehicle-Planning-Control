@@ -8,8 +8,6 @@
 
 A Python toolkit for non-holonomic vehicle path planning, trajectory tracking, and animated 2D simulation. It combines Dubins and Reeds–Shepp motion planning, RRT*, real-time obstacle avoidance, an MPC controller, and vehicle-level steering and drive actuator dynamics.
 
-> GitHub repository-specific badges (stars, issues, and Actions status) can be added once the project has a GitHub repository.
-
 ## Simulation previews
 
 ### Street navigation — Reeds–Shepp
@@ -103,6 +101,8 @@ python main.py --scenario all --output-dir ./artifacts
 ## Configuration
 
 The master configuration is [`configs/default.yaml`](configs/default.yaml). It contains vehicle dimensions and actuator parameters, obstacle inflation settings, planner options, MPC tuning, and visualization settings.
+
+Ego poses (start, goal, planned paths) refer to the **rear-axle center**; a pose written for the vehicle center must be moved back by half a wheelbase along the heading.
 
 Scenario-specific YAML files are in [`configs/scenarios/`](configs/scenarios/). Pass a custom configuration with:
 

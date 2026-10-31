@@ -1,6 +1,6 @@
 """Real-Time Local Spatio-Temporal Replanner for Moving Obstacles (Vehicles & Pedestrians).
 
-Operates at >100 Hz (< 5 ms per control step) alongside the Linear MPC controller:
+Runs alongside the MPC; latency is measured rather than guaranteed:
 - Monitors the active reference path over a spatio-temporal lookahead horizon ``[t, t + T_pred]``
   against velocity-anisotropic inflated dynamic obstacles (other vehicles, pedestrians, cyclists).
 - Generates a bank of 3-phase non-holonomic local overtaking / bypass trajectories
@@ -19,6 +19,7 @@ import time
 from typing import List, Literal, Optional, Tuple
 
 import numpy as np
+from non_holonomic_vehicle_planning.trajectory import geometry, lateral_bypass_profile, min_transition_length
 from shapely.geometry import Point
 
 from non_holonomic_vehicle_planning.config import RealTimePlannerConfig
@@ -29,6 +30,9 @@ from non_holonomic_vehicle_planning.scenario import Scenario
 from non_holonomic_vehicle_planning.vehicle import wrap_angle
 
 PlannerMode = Literal["CRUISE", "AVOID_BYPASS", "YIELD_STOP"]
+
+BYPASS_CURVATURE_SHARE = 0.6  # Share of the curvature limit used by the lateral ramp; rest stays for base-path curves.
+MAX_BYPASS_HEADING_ERROR = math.radians(45.0)  # [rad] Frenet start values stop being meaningful beyond this.
 
 
 @dataclass
@@ -102,7 +106,8 @@ class RealTimePlanner:
                 if dist_acc > self.config.lookahead_distance_m + 12.0:
                     break
 
-            pt = Point(float(path.x[idx]), float(path.y[idx]))
+            disks = self.scenario.inflater.pose_disks_world(float(path.x[idx]),float(path.y[idx]),float(path.yaw[idx]))
+            points = [Point(float(px),float(py)) for px,py in disks]
 
             for dyn in self.scenario.dynamic_obstacles:
                 if blocker_id is not None and dyn.id != blocker_id:
@@ -113,7 +118,7 @@ class RealTimePlanner:
                         self.scenario.inflation_config,
                         ego_disk_radius=r_ego,
                     )
-                    if inf_poly.contains(pt):
+                    if any(inf_poly.intersects(pt) for pt in points):
                         if conflict_start_idx is None:
                             conflict_start_idx = idx
                             conflict_dist = dist_acc
@@ -140,21 +145,21 @@ class RealTimePlanner:
         s_acc = 0.0
         min_dyn_dist = float("inf")
 
-        step = max(1, len(seg.x) // 18)
+        step = 1
         for i in range(0, len(seg.x), step):
             if i > 0:
                 prev_i = max(0, i - step)
                 s_acc += math.hypot(float(seg.x[i] - seg.x[prev_i]), float(seg.y[i] - seg.y[prev_i]))
             t_i = t_start + s_acc / v_est
-            pt = Point(float(seg.x[i]), float(seg.y[i]))
+            # Cover all footprint disks, including the front/rear swept pose.
+            disks = self.scenario.inflater.pose_disks_world(float(seg.x[i]),float(seg.y[i]),float(seg.yaw[i]))
             for dyn in self.scenario.dynamic_obstacles:
-                if blocker_id is not None and dyn.id != blocker_id and s_acc > s_pass_end:
-                    continue
                 for t_check in (t_start, t_i) if dyn.id == blocker_id else (t_i,):
                     poly = dyn.inflated_polygon_at(t_check, self.scenario.inflation_config, ego_disk_radius=r_ego)
-                    if poly.contains(pt):
+                    points = [Point(float(px),float(py)) for px,py in disks]
+                    if any(poly.intersects(pt) for pt in points):
                         return False, 0.0
-                    d = float(poly.exterior.distance(pt))
+                    d = min(float(poly.distance(pt)) for pt in points)
                     if d < min_dyn_dist:
                         min_dyn_dist = d
 
@@ -172,15 +177,15 @@ class RealTimePlanner:
         nominal_speed: float,
         blocker_id: Optional[str] = None,
     ) -> Tuple[Optional[PlannedPath], List[Tuple[np.ndarray, np.ndarray]], Optional[Tuple[np.ndarray, np.ndarray]]]:
-        """Search a bank of 3-phase C² Frenet S-curve overtaking trajectories around the conflict zone.
+        """Search a bank of 3-phase C² Frenet quintic overtaking trajectories around the conflict zone.
 
-        Phases along reference arc-length ``s`` (measured from ``current_idx``):
-          1. Pull-out S-curve: smoothly shifts from ``d = 0`` to ``d = lat_offset`` over ``[0, s_pull]``.
+        Phases along reference arc-length ``s`` (measured from the projected vehicle pose):
+          1. Pull-out: quintic from the measured ``(d, d', d'')`` to ``d = lat_offset`` over ``[0, s_pull]``.
           2. Parallel pass: maintains ``d = lat_offset`` alongside the obstacle over ``[s_pull, s_pass]``.
-          3. Merge-back S-curve: smoothly returns from ``d = lat_offset`` to ``0`` over ``[s_pass, s_rejoin]``.
+          3. Merge-back: rest-to-rest quintic from ``d = lat_offset`` to ``0`` over ``[s_pass, s_rejoin]``.
         """
         n = len(active_path.x)
-        if current_idx >= n - 6:
+        if current_idx >= n - 6 or np.any(active_path.reversing[current_idx:conflict_end_idx+1]):
             return None, [], None
 
         # Compute cumulative arc-length from current_idx along active_path
@@ -202,7 +207,9 @@ class RealTimePlanner:
         # Reach full lateral offset right before the conflict box starts (s_c_start - 0.3)
         s_pull = max(3.2, s_c_start - 0.3)
         s_pass = min(s_total_rem - 1.5, max(s_pull + 2.5, s_c_end + 0.8))
-        s_rejoin = min(s_total_rem, s_pass + 5.2)
+        max_kappa = self.scenario.vehicle.max_curvature
+        widest = max(map(abs, self.config.lateral_offsets_m))
+        s_rejoin = min(s_total_rem, s_pass + max(10.0, s_pull, min_transition_length(widest, BYPASS_CURVATURE_SHARE*max_kappa)))
         if s_rejoin <= s_pull + 1.5:
             return None, [], None
 
@@ -213,32 +220,47 @@ class RealTimePlanner:
         s_slice = s_rel[:rejoin_rel_idx + 1]
         x_slice = ref_x[:rejoin_rel_idx + 1]
         y_slice = ref_y[:rejoin_rel_idx + 1]
-        yaw_slice = ref_yaw[:rejoin_rel_idx + 1]
+        yaw_slice = np.unwrap(ref_yaw[:rejoin_rel_idx + 1])
+        if np.any(np.diff(s_slice) <= 1e-8) or len(s_slice) < 6:
+            return None, [], None
         nx = -np.sin(yaw_slice)
         ny = np.cos(yaw_slice)
+        forward = len(x_slice)*[False]
+        _, base_kappa = geometry(x_slice, y_slice, yaw_slice, forward)
+
+        # Frenet boundary values of the measured pose at the projection on the base path.
+        dx = state.x - float(x_slice[0])
+        dy = state.y - float(y_slice[0])
+        s_vehicle = dx*math.cos(yaw_slice[0]) + dy*math.sin(yaw_slice[0])
+        d0 = dx*float(nx[0]) + dy*float(ny[0])
+        heading_error = wrap_angle(state.yaw - float(yaw_slice[0]))
+        if abs(heading_error) > MAX_BYPASS_HEADING_ERROR:
+            return None, [], None
+        d1 = (1.0 - float(base_kappa[0])*d0)*math.tan(heading_error)
+        d2 = math.tan(state.steer)/self.scenario.vehicle.wheelbase - float(base_kappa[0])
+        s_local = s_slice - s_vehicle
+        s_end = float(s_local[-1])
 
         candidates_xy: List[Tuple[np.ndarray, np.ndarray]] = []
         best_seg: Optional[TrajectorySegment] = None
         best_score = float("inf")
 
         for lat_offset in self.config.lateral_offsets_m:
-            # Build 3-phase C² Cosine lateral offset profile d(s)
-            d_prof = np.zeros_like(s_slice)
-            for k, s_val in enumerate(s_slice):
-                if s_val <= s_pull:
-                    u = s_val / max(s_pull, 1.0)
-                    d_prof[k] = 0.5 * lat_offset * (1.0 - math.cos(math.pi * u))
-                elif s_val <= s_pass:
-                    d_prof[k] = lat_offset
-                else:
-                    u = min(1.0, (s_val - s_pass) / max(s_rejoin - s_pass, 1.0))
-                    d_prof[k] = 0.5 * lat_offset * (1.0 + math.cos(math.pi * u))
-
+            # A longer pull-out is only a candidate; collision checks below decide.
+            pull_length = max(s_pull, min_transition_length(lat_offset - d0, BYPASS_CURVATURE_SHARE*max_kappa))
+            pass_end = max(s_pass, pull_length)
+            if s_end <= pass_end + 1.5:
+                continue
+            d_prof, d_slope = lateral_bypass_profile(s_local, pull_length, pass_end, s_end, lat_offset, d0, d1, d2)
+            scale = 1.0 - base_kappa*d_prof
+            if np.min(scale) < 0.1:
+                continue
             cand_x = x_slice + d_prof * nx
             cand_y = y_slice + d_prof * ny
-            # Anchor start exactly at current vehicle position for zero jump
-            cand_x[0] = state.x
-            cand_y[0] = state.y
+            cand_yaw = yaw_slice + np.arctan2(d_slope, scale)
+            _, kappa = geometry(cand_x, cand_y, cand_yaw, forward)
+            if np.max(abs(kappa)) > max_kappa + 1e-3:
+                continue
 
             if (
                 np.any(cand_x < 0.8)
@@ -248,12 +270,7 @@ class RealTimePlanner:
             ):
                 continue
 
-            dx = np.diff(cand_x)
-            dy = np.diff(cand_y)
-            seg_ds = np.hypot(dx, dy)
-            cand_yaw = np.zeros_like(cand_x)
-            cand_yaw[:-1] = np.arctan2(dy, dx)
-            cand_yaw[-1] = yaw_slice[-1]
+            seg_ds = np.hypot(np.diff(cand_x), np.diff(cand_y))
 
             cand_len = float(np.sum(seg_ds))
             combined = TrajectorySegment(

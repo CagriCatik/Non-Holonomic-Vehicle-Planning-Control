@@ -10,8 +10,8 @@ import numpy as np
 from shapely.geometry import Point
 
 from non_holonomic_vehicle_planning.planning.base import PlannedPath, TrajectorySegment
-from non_holonomic_vehicle_planning.planning.dubins import plan_dubins_segments
-from non_holonomic_vehicle_planning.planning.reeds_shepp import plan_reeds_shepp_segments
+from non_holonomic_vehicle_planning.planning.dubins import iter_dubins_segments
+from non_holonomic_vehicle_planning.planning.reeds_shepp import iter_reeds_shepp_segments
 from non_holonomic_vehicle_planning.scenario import Scenario
 from non_holonomic_vehicle_planning.vehicle import wrap_angle
 
@@ -26,6 +26,7 @@ class PlannerConfig:
     step_size: float = 15.0
     goal_tolerance: float = 1.5
     rewire_radius: float = 20.0
+    max_rewire_neighbors: int = 40  # Closest nodes considered; bounds the cost per iteration in small scenes.
     goal_sample_rate: float = 0.10
     goal_orientation_bias: float = 0.15
     star: bool = True
@@ -107,9 +108,9 @@ def create_connector_segment(
 
     maxc = scenario.max_curvature
     if backwards:
-        candidates = plan_reeds_shepp_segments(sx, sy, syaw, gx, gy, gyaw, maxc, step=0.2)
+        candidates = iter_reeds_shepp_segments(sx, sy, syaw, gx, gy, gyaw, maxc, step=0.2)
     else:
-        candidates = plan_dubins_segments(sx, sy, syaw, gx, gy, gyaw, maxc, step=0.2)
+        candidates = iter_dubins_segments(sx, sy, syaw, gx, gy, gyaw, maxc, step=0.2)
 
     for seg in candidates:
         if scenario.collision_free(seg):
@@ -272,10 +273,11 @@ class RRTStarPlanner:
             # RRT* Choose Parent within rewire_radius
             nearby_nodes: List[TreeNode] = []
             if self.config.star:
+                distances = [(math.hypot(nd.x - sampled_node.x, nd.y - sampled_node.y), i) for i, nd in enumerate(all_nodes)]
+                nearest = sorted(d for d in distances if d[0] < self.config.rewire_radius)
                 nearby_nodes = [
-                    nd for nd in all_nodes
-                    if nd is not sampled_node
-                    and math.hypot(nd.x - sampled_node.x, nd.y - sampled_node.y) < self.config.rewire_radius
+                    all_nodes[i] for _, i in nearest[:self.config.max_rewire_neighbors]
+                    if all_nodes[i] is not sampled_node
                 ]
                 min_total_cost = sampled_node.cost
                 for near_nd in nearby_nodes:
@@ -365,11 +367,12 @@ class RRTStarPlanner:
                 if not self.config.star:
                     break
 
-        # Extract best goal-reaching node
+        # A position-near node with the wrong heading is not a goal pose.
         all_nodes = collect_all_nodes(start_node)
         goal_candidates = [
             nd for nd in all_nodes
-            if math.hypot(nd.x - goal_node.x, nd.y - goal_node.y) <= self.config.goal_tolerance
+            if math.hypot(nd.x-goal_node.x,nd.y-goal_node.y) <= 1e-5
+            and _angle_diff_deg(nd.yaw,goal_node.yaw) <= 1e-4
             and nd is not start_node
         ]
 

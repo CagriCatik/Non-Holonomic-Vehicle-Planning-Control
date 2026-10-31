@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List, Optional, Sequence, Tuple, Union
 
 import numpy as np
+import shapely
 import shapely.geometry
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import unary_union
@@ -147,7 +148,7 @@ class Scenario:
             wheel_track=0.75 * self.vehicle_width,
             explicit_max_curvature=float(max_curvature),
         )
-        self.max_curvature = np.linspace(0.1, float(max_curvature), 6).tolist()
+        self.max_curvature = np.linspace(min(0.1,float(max_curvature)),float(max_curvature),6).tolist()
         self.inflater = ObstacleInflater(self.vehicle, self.inflation_config)
         self._rebuild_buffers()
         return self
@@ -174,26 +175,15 @@ class Scenario:
     ) -> bool:
         """Check whether a geometry or TrajectorySegment is collision-free against inflated static obstacles."""
         if isinstance(geom_or_segment, TrajectorySegment):
-            line = geom_or_segment.linestring
-            if self.boundary is not None and line.intersects(self.boundary):
+            offsets = self.inflater.disk_longitudinal_offsets
+            px = geom_or_segment.x[:,None]+np.cos(geom_or_segment.yaw[:,None])*offsets
+            py = geom_or_segment.y[:,None]+np.sin(geom_or_segment.yaw[:,None])*offsets
+            if self._buffered_union is not None and np.any(shapely.intersects_xy(self._buffered_union,px,py)):
                 return False
-            # Fast broadphase: if center line doesn't even touch soft union, all disks are guaranteed safe
-            if self._soft_union is not None and not line.intersects(self._soft_union):
-                return True
-            if self._buffered_union is not None and line.intersects(self._buffered_union):
-                return False
-            # Multi-disk check at sampled poses along segment
-            if self.inflation_config.use_multi_disk_footprint and len(geom_or_segment.x) >= 2:
-                step = max(1, len(geom_or_segment.x) // 8)
-                for idx in range(0, len(geom_or_segment.x), step):
-                    if not self.inflater.is_pose_collision_free(
-                        float(geom_or_segment.x[idx]),
-                        float(geom_or_segment.y[idx]),
-                        float(geom_or_segment.yaw[idx]),
-                        self._buffered_union,
-                        self.boundary,
-                    ):
-                        return False
+            if self.boundary is not None:
+                points = shapely.points(px,py)
+                if np.any(shapely.distance(points,self.boundary) <= self.inflater.disk_radius):
+                    return False
             return True
 
         if not hasattr(geom_or_segment, "geom_type"):

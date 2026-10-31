@@ -1,95 +1,90 @@
 Street_Scenario_ReedsShepp:
-  Simulation Time [s]:               32.2616
-  Length of Planned Trajectory [m]:  57.4019
-  Length of Simulated Trajectory [m]:4.9713
-  Max Cross-Track Error [m]:         0.8186
+  Simulation Time [s]:               14.0409
+  Length of Planned Trajectory [m]:  57.5072
+  Length of Simulated Trajectory [m]:57.6408
+  Max Cross-Track Error [m]:         0.0538
   Real-Time Replans Triggered:       0
-  Goal Reached:                      False
+  Goal Reached:                      True
 
 Street_Scenario_Dubin:
-  Simulation Time [s]:               39.3797
-  Length of Planned Trajectory [m]:  57.9522
-  Length of Simulated Trajectory [m]:58.3925
-  Max Cross-Track Error [m]:         1.2192
+  Simulation Time [s]:               14.2007
+  Length of Planned Trajectory [m]:  58.7152
+  Length of Simulated Trajectory [m]:58.8318
+  Max Cross-Track Error [m]:         0.0216
   Real-Time Replans Triggered:       0
-  Goal Reached:                      False
+  Goal Reached:                      True
 
 ParallelParking_Scenario_ReedShepp:
-  Simulation Time [s]:               10.0964
-  Length of Planned Trajectory [m]:  25.0801
-  Length of Simulated Trajectory [m]:25.4061
-  Max Cross-Track Error [m]:         1.1853
+  Simulation Time [s]:               10.1752
+  Length of Planned Trajectory [m]:  25.4177
+  Length of Simulated Trajectory [m]:25.8013
+  Max Cross-Track Error [m]:         0.0408
   Real-Time Replans Triggered:       0
   Goal Reached:                      True
 
 ParallelParking_Scenario_Dubin:
-  Simulation Time [s]:               13.2767
-  Length of Planned Trajectory [m]:  29.2740
-  Length of Simulated Trajectory [m]:29.9507
-  Max Cross-Track Error [m]:         0.6717
-  Real-Time Replans Triggered:       0
-  Goal Reached:                      True
+  Planning failed: RRT could not find a collision-free path within 2500 iterations.
 
 Parking_Scenario_ReedsShepp:
-  Simulation Time [s]:               8.9683
-  Length of Planned Trajectory [m]:  48.6216
-  Length of Simulated Trajectory [m]:48.2300
-  Max Cross-Track Error [m]:         0.2873
+  Simulation Time [s]:               10.4710
+  Length of Planned Trajectory [m]:  48.9433
+  Length of Simulated Trajectory [m]:49.0848
+  Max Cross-Track Error [m]:         0.0378
   Real-Time Replans Triggered:       0
   Goal Reached:                      True
 
 Parking_Scenario_Dubin:
-  Simulation Time [s]:               36.8682
-  Length of Planned Trajectory [m]:  48.9526
-  Length of Simulated Trajectory [m]:49.1946
-  Max Cross-Track Error [m]:         1.1357
+  Simulation Time [s]:               11.2895
+  Length of Planned Trajectory [m]:  49.1055
+  Length of Simulated Trajectory [m]:49.2441
+  Max Cross-Track Error [m]:         0.0378
   Real-Time Replans Triggered:       0
-  Goal Reached:                      False
+  Goal Reached:                      True
 
 Urban_Pedestrian_Crossing_RealTime:
-  Simulation Time [s]:               53.9936
-  Length of Planned Trajectory [m]:  70.7543
-  Length of Simulated Trajectory [m]:73.2878
-  Max Cross-Track Error [m]:         1.1525
-  Real-Time Replans Triggered:       2
-  Goal Reached:                      False
+  Simulation Time [s]:               26.9885
+  Length of Planned Trajectory [m]:  60.1332
+  Length of Simulated Trajectory [m]:60.3365
+  Max Cross-Track Error [m]:         0.0232
+  Real-Time Replans Triggered:       1
+  Goal Reached:                      True
 
 Urban_Crossing_V2_Right_Bypass:
-  Simulation Time [s]:               24.3436
-  Length of Planned Trajectory [m]:  58.0058
-  Length of Simulated Trajectory [m]:60.6044
-  Max Cross-Track Error [m]:         1.1792
+  Simulation Time [s]:               16.3560
+  Length of Planned Trajectory [m]:  57.5910
+  Length of Simulated Trajectory [m]:57.7327
+  Max Cross-Track Error [m]:         0.0509
   Real-Time Replans Triggered:       0
   Goal Reached:                      True
 
 Urban_Crossing_V3_Pedestrian_Yield:
-  Simulation Time [s]:               31.8798
-  Length of Planned Trajectory [m]:  62.6257
-  Length of Simulated Trajectory [m]:65.5095
-  Max Cross-Track Error [m]:         1.1127
+  Simulation Time [s]:               19.7573
+  Length of Planned Trajectory [m]:  61.0819
+  Length of Simulated Trajectory [m]:61.1959
+  Max Cross-Track Error [m]:         0.0526
   Real-Time Replans Triggered:       1
   Goal Reached:                      True
 
 Urban_Crossing_V4_Multi_Vehicle_Slalom:
-  Simulation Time [s]:               31.6302
-  Length of Planned Trajectory [m]:  70.1545
-  Length of Simulated Trajectory [m]:71.3681
-  Max Cross-Track Error [m]:         0.9864
-  Real-Time Replans Triggered:       2
+  Simulation Time [s]:               22.2135
+  Length of Planned Trajectory [m]:  61.1245
+  Length of Simulated Trajectory [m]:61.2842
+  Max Cross-Track Error [m]:         0.0253
+  Real-Time Replans Triggered:       1
   Goal Reached:                      True
 
 Urban_Crossing_V5_Rush_Hour:
-  Simulation Time [s]:               46.6355
-  Length of Planned Trajectory [m]:  70.1238
-  Length of Simulated Trajectory [m]:71.8609
-  Max Cross-Track Error [m]:         0.9823
-  Real-Time Replans Triggered:       2
-  Goal Reached:                      False
+  Simulation Time [s]:               23.4164
+  Length of Planned Trajectory [m]:  57.5910
+  Length of Simulated Trajectory [m]:57.7579
+  Max Cross-Track Error [m]:         0.0185
+  Real-Time Replans Triggered:       0
+  Goal Reached:                      True
 
 Dynamic_Overtaking_Traffic_RealTime:
-  Simulation Time [s]:               67.8282
-  Length of Planned Trajectory [m]:  118.1401
-  Length of Simulated Trajectory [m]:139.4538
-  Max Cross-Track Error [m]:         4.6041
-  Real-Time Replans Triggered:       4
-  Goal Reached:                      False
+  Simulation Time [s]:               20.3823
+  Length of Planned Trajectory [m]:  46.5997
+  Length of Simulated Trajectory [m]:46.8300
+  Max Cross-Track Error [m]:         0.0179
+  Real-Time Replans Triggered:       0
+  Goal Reached:                      True

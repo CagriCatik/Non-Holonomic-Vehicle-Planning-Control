@@ -1,2 +1,38 @@
-.venv
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Packaging and build output
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+
+# Test, type-check and lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Generated results
+# plots/ stays tracked for the PNGs and GIFs shown in the README;
+# the telemetry next to them is reproducible with `python main.py`.
+plots/*.csv
+plots/*.json
+artifacts/
+Saved_scenarios/
+
+# Local notes and working documents
+auftrag.md
+docs/
+
+# Editors and operating systems
+.vscode/
+.idea/
 .DS_Store
+Thumbs.db

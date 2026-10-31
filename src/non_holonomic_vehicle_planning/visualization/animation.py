@@ -419,6 +419,8 @@ def animate_rrt_tree_growth(
     name = scenario_name or scenario.name
 
     # If tree_growth_history hasn't been populated yet, run RRTStarPlanner to record live tree growth
+    import copy
+    scenario = copy.deepcopy(scenario)
     saved_planned_path = scenario.planned_path
     if not scenario.tree_growth_history:
         conn_type = "dubins" if "dubin" in connector.lower() else "reeds_shepp"

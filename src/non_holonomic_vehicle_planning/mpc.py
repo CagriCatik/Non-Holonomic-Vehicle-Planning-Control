@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import numpy as np
+import math
 
 from non_holonomic_vehicle_planning.config import load_yaml_dict, parse_vehicle_params
 from non_holonomic_vehicle_planning.control.kinematic_model import KinematicState, Node, calc_linear_discrete_model
@@ -30,6 +31,7 @@ def parse_mpc_config(data: Dict[str, Any]) -> MPCConfig:
     rd_diag = m.get("Rd_diag", [0.01, 0.15])
     return MPCConfig(
         horizon=int(m.get("horizon", 14)),
+        max_lateral_accel=float(m["max_lateral_accel_m_s2"]) if m.get("max_lateral_accel_m_s2") is not None else None,
         Q=np.diag([float(x) for x in q_diag]),
         Qf=np.diag([float(x) for x in qf_diag]),
         R=np.diag([float(x) for x in r_diag]),
@@ -38,9 +40,11 @@ def parse_mpc_config(data: Dict[str, Any]) -> MPCConfig:
         target_speed=float(m.get("target_speed_kmh", 11.0)) / 3.6,
         dist_stop=float(m.get("dist_stop", 0.65)),
         speed_stop=float(m.get("speed_stop", 0.15)),
+        heading_stop=math.radians(float(m.get("heading_stop_deg",5.))),
         time_max=float(m.get("time_max", 120.0)),
         iter_max=int(m.get("iter_max", 4)),
         du_res=float(m.get("du_res", 0.08)),
+        steer_du_res=float(m.get("steer_du_res",.005)),
         search_window=int(m.get("search_window", 18)),
     )
 

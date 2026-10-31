@@ -46,6 +46,7 @@ class DynamicObstacle:
         overhang = 0.5 * (self.length - wb)
         return VehicleParams(
             wheelbase=wb,
+            pose_reference="center",
             width=self.width,
             rear_overhang=overhang,
             front_overhang=overhang,

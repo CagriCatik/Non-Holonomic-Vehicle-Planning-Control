@@ -40,9 +40,15 @@ def run_benchmark_suite(
     metrics_lines: List[str] = []
 
     for name in keys:
-        scenario, spec = load_or_plan_scenario(name, replan=replan, iterations=iterations)
+        try:
+            scenario, spec = load_or_plan_scenario(name, replan=replan, iterations=iterations, config_path=config_path)
+        except RuntimeError as error:
+            # One unsolved planning problem must not discard the remaining scenarios.
+            print(f"[{name}] Planning failed: {error}")
+            metrics_lines.extend([f"{name}:", f"  Planning failed: {error}", ""])
+            continue
         # If scenario has its own YAML file and no explicit config override was passed, load its settings
-        eff_app = load_config( Path("configs/scenarios") / spec.yaml_file ) if (config_path is None and spec.yaml_file) else app_cfg
+        eff_app = load_config(spec.yaml_file if Path(spec.yaml_file).exists() else Path("scenarios") / spec.yaml_file) if (config_path is None and spec.yaml_file) else app_cfg
         eff_mpc = parse_mpc_config(eff_app.raw)
 
         if animate and tree_gif:
@@ -169,7 +175,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         comp_path = Path(args.output_dir) / "Urban_Crossing_Variants_Comparison.png"
         plot_urban_variants_comparison(results, output_path=comp_path)
         print(f"[Urban_Variants_Study] Saved comparative analysis plot -> {comp_path}")
-    return 0
+    return 0 if len(results) == len(names) else 1
 
 
 if __name__ == "__main__":

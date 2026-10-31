@@ -53,11 +53,11 @@ class ObstacleInflater:
     def disk_longitudinal_offsets(self) -> np.ndarray:
         """Longitudinal offsets [m] of the covering disk centers in the vehicle-center frame."""
         if not self.config.use_multi_disk_footprint or self.config.num_footprint_disks <= 1:
-            return np.array([0.0], dtype=float)
+            return np.array([.5*(self.vehicle.rear_bumper_x+self.vehicle.front_bumper_x)], dtype=float)
         n = self.config.num_footprint_disks
         half_L = 0.5 * self.vehicle.length
         step = self.vehicle.length / n
-        return np.linspace(-half_L + 0.5 * step, half_L - 0.5 * step, n)
+        return np.linspace(self.vehicle.rear_bumper_x+.5*step,self.vehicle.front_bumper_x-.5*step,n)
 
     @property
     def hard_inflation_radius(self) -> float:

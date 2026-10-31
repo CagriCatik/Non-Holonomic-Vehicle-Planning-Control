@@ -33,14 +33,9 @@ def unwrap_angles(angles: np.ndarray | list[float]) -> np.ndarray:
 class VehicleParams:
     """Unified 2D planar vehicle parameters.
 
-    Coordinate convention:
-    The state reference point ``(x, y)`` is the **geometric center** of the
-    vehicle chassis, with ``+x`` pointing forward along the longitudinal axis
-    at ``yaw = 0`` and ``+y`` pointing left:
-    - Rear bumper is at ``x_local = -0.5 * length``
-    - Rear axle is at ``x_local = -0.5 * wheelbase``
-    - Front axle is at ``x_local = +0.5 * wheelbase``
-    - Front bumper is at ``x_local = +0.5 * length``
+    Pose convention: ego planning/control poses are at the rear axle center.
+    Signed speed is rear-axle longitudinal speed. Geometry can explicitly use
+    ``pose_reference="center"`` for externally specified moving-obstacle poses.
     """
 
     wheelbase: float = 2.9          # [m] distance between rear and front axles (WB)
@@ -63,6 +58,27 @@ class VehicleParams:
 
     # Optional explicit max curvature override [1/m] for path planners
     explicit_max_curvature: float | None = 1.0 / 4.39
+    pose_reference: str = "rear_axle"
+
+    def __post_init__(self):
+        for name in ("wheelbase","width","wheel_track","tire_radius","tire_width",
+                     "max_steer_rate","max_steer_accel","max_accel","steer_tau","accel_tau","max_speed"):
+            value = getattr(self,name)
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError(name+" must be finite and positive")
+        if not 0 < self.max_steer < math.pi/2:
+            raise ValueError("max_steer must lie in (0,pi/2)")
+        if not math.isfinite(self.min_speed) or self.min_speed>0:
+            raise ValueError("min_speed must be finite and <=0")
+        if any(not math.isfinite(v) or v<0 for v in (self.rear_overhang,self.front_overhang)):
+            raise ValueError("Overhangs must be finite and nonnegative")
+        if self.pose_reference not in ("rear_axle","center"):
+            raise ValueError("pose_reference must be rear_axle or center")
+        if self.explicit_max_curvature is not None:
+            if not math.isfinite(self.explicit_max_curvature) or self.explicit_max_curvature <= 0:
+                raise ValueError("Explicit curvature must be finite and positive")
+            if self.explicit_max_curvature > math.tan(self.max_steer)/self.wheelbase+1e-9:
+                raise ValueError("Planner curvature exceeds physical steering limit")
 
     def ackermann_wheel_angles(self, steer: float) -> Tuple[float, float]:
         """Compute (delta_FL, delta_FR) [rad] using exact Ackermann steering geometry.
@@ -91,22 +107,22 @@ class VehicleParams:
 
     @property
     def rear_axle_x(self) -> float:
-        """Longitudinal position of rear axle in vehicle-center frame [m]."""
-        return -0.5 * self.wheelbase
+        """Longitudinal position of rear axle in pose frame [m]."""
+        return -0.5 * self.wheelbase if self.pose_reference == "center" else 0.
 
     @property
     def front_axle_x(self) -> float:
-        """Longitudinal position of front axle in vehicle-center frame [m]."""
-        return 0.5 * self.wheelbase
+        """Longitudinal position of front axle in pose frame [m]."""
+        return self.rear_axle_x + self.wheelbase
 
     @property
     def rear_bumper_x(self) -> float:
-        """Longitudinal position of rear bumper in vehicle-center frame [m]."""
+        """Longitudinal position of rear bumper in pose frame [m]."""
         return self.rear_axle_x - self.rear_overhang
 
     @property
     def front_bumper_x(self) -> float:
-        """Longitudinal position of front bumper in vehicle-center frame [m]."""
+        """Longitudinal position of front bumper in pose frame [m]."""
         return self.front_axle_x + self.front_overhang
 
     @property
@@ -140,7 +156,7 @@ class VehicleParams:
     def curvature_candidates(self) -> list[float]:
         """Set of candidate curvatures [1/m] used by RRT* curve connectors."""
         c_max = self.max_curvature
-        return np.linspace(max(0.1, 0.35 * c_max), c_max, 5).tolist()
+        return np.linspace(min(c_max,max(0.1,0.35*c_max)),c_max,5).tolist()
 
     @property
     def min_turning_radius(self) -> float:
@@ -150,7 +166,7 @@ class VehicleParams:
     @property
     def bounding_radius(self) -> float:
         """Conservative bounding circle radius around geometric center [m]."""
-        return math.hypot(0.5 * self.length, 0.5 * self.width)
+        return math.hypot(max(abs(self.rear_bumper_x),abs(self.front_bumper_x)),self.half_width)
 
     def footprint_polygon(self, x: float, y: float, yaw: float, margin: float = 0.0) -> ShapelyPolygon:
         """Return the oriented 2D chassis footprint as a Shapely Polygon in world coordinates."""

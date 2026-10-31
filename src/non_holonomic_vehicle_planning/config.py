@@ -128,7 +128,7 @@ def parse_vehicle_params(data: Dict[str, Any]) -> VehicleParams:
         max_speed=float(v.get("max_speed_kmh", 55.0)) / 3.6,
         min_speed=float(v.get("min_speed_kmh", -20.0)) / 3.6,
         max_accel=float(v.get("max_accel", 1.8)),
-        explicit_max_curvature=float(v["max_curvature"]) if "max_curvature" in v else (1.0 / 4.39),
+        explicit_max_curvature=float(v["max_curvature"]) if "max_curvature" in v else None,
     )
 
 

@@ -60,12 +60,14 @@ mpc:
   Qf_diag: [6.0, 6.0, 2.0, 4.5] # Endzustandsgewichtung [x, y, v, yaw]
   R_diag: [0.01, 0.25]         # Stellgrößen-Gewichtung [a, delta]
   Rd_diag: [0.02, 1.50]        # Stellgrößenänderungs-Gewichtung [da, ddelta] für sanfte Lenkaktuatorik
-  dynamic_obstacle_weight: 10.0 # Abstoßungsgewicht gegenüber bewegten Hindernissen
+  max_lateral_accel_m_s2: null # Optional: explizite Querbeschleunigungsgrenze [m/s²]
   dist_stop: 0.65              # [m] Zieltoleranz zum Anhalten
+  heading_stop_deg: 5.0       # Orientierungsfehler am Ziel [deg]
   speed_stop: 0.15             # [m/s] Geschwindigkeitsschwelle am Ziel
   time_max: 120.0              # [s] Maximale Simulationsdauer
   iter_max: 4                  # Max. SQP-Iterationen pro Zeitschritt
-  du_res: 0.08                 # Konvergenzschwelle für SQP
+  du_res: 0.08                 # SQP-Beschleunigungstoleranz [m/s²]
+  steer_du_res: 0.005          # SQP-Lenkwinkeltoleranz [rad]
   search_window: 18
 
 visualization:

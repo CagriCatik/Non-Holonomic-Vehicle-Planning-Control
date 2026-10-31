@@ -1,6 +1,6 @@
 """2D Planar Vehicle Geometry and Renderer.
 
-Renders a complete 2D planar vehicle referenced at its geometric center ``(x, y)``:
+Renders a complete 2D planar vehicle referenced at its configured pose reference ``(x, y)``:
 - Chassis body polygon and directional front cabin/windshield contour
 - Front and rear axles and longitudinal vehicle centerline
 - Four wheels (FL, FR, RL, RR) with exact tire length & width and front wheel steering deflection (Radeinschlag)
@@ -56,8 +56,8 @@ def _body_polygon_local(p: VehicleParams) -> np.ndarray:
 
 def _windshield_polygon_local(p: VehicleParams) -> np.ndarray:
     """2x5 closed trapezoid indicating the front cabin/windshield in local frame."""
-    x0 = 0.08 * p.wheelbase
-    x1 = 0.44 * p.wheelbase
+    x0 = p.rear_axle_x + 0.58 * p.wheelbase
+    x1 = p.rear_axle_x + 0.94 * p.wheelbase
     y0 = 0.76 * p.half_width
     y1 = 0.62 * p.half_width
     return np.array(
@@ -106,6 +106,7 @@ def vehicle_geometry_world(
     if abs(scale - 1.0) > 1e-6:
         p = VehicleParams(
             wheelbase=params.wheelbase * scale,
+            pose_reference=params.pose_reference,
             width=params.width * scale,
             rear_overhang=params.rear_overhang * scale,
             front_overhang=params.front_overhang * scale,
