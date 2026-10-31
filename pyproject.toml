@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "non-holonomic-vehicle-planning"
+version = "1.0.0"
+description = "Non-holonomic vehicle path planning, MPC trajectory tracking, actuator dynamics, and 2D simulation."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "matplotlib>=3.8",
+    "pillow>=10.0",
+    "shapely>=2.0",
+    "cvxpy>=1.4",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
+
+[project.scripts]
+nh-rrt = "non_holonomic_vehicle_planning.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["non_holonomic_vehicle_planning*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

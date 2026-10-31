@@ -1,0 +1,80 @@
+# =============================================================================
+# Master Configuration for Non-Holonomic RRT*, Real-Time Dynamic Replanning,
+# Obstacle Inflation, Linear MPC, and 2D Planar Vehicle GIF Visualization
+# =============================================================================
+
+vehicle:
+  wheelbase: 2.9               # [m] Abstand Hinterachse zu Vorderachse (WB)
+  width: 2.0                   # [m] Fahrzeugbreite (W)
+  rear_overhang: 0.8           # [m] Überhang hinten
+  front_overhang: 0.8          # [m] Überhang vorne (Gesamtlänge = 4.5 m)
+  wheel_track: 1.50            # [m] Spurweite (Abstand linkes/rechtes Rad)
+  tire_radius: 0.40            # [m] Reifenradius (Reifenlänge = 0.80 m)
+  tire_width: 0.30             # [m] Reifenbreite
+  max_steer_deg: 45.0          # [deg] Maximaler Radeinschlag / Lenkwinkel
+  max_steer_rate_deg_s: 50.0   # [deg/s] Maximale physikalische Lenkwinkelgeschwindigkeit (Aktuator-Limit)
+  max_steer_accel_deg_s2: 180.0 # [deg/s^2] Maximale Lenkwinkelbeschleunigung (Servo-Dämpfung)
+  steer_tau_s: 0.16            # [s] PT1-Zeitkonstante der Lenkaktuatorik (Servo-Verzögerung)
+  accel_tau_s: 0.10            # [s] PT1-Zeitkonstante der Antriebs-/Bremsaktuatorik
+  ackermann_steering: true     # Exakte Ackermann-Lenkgeometrie (Innenrad lenkt stärker als Außenrad)
+  max_speed_kmh: 55.0          # [km/h] Maximale Vorwärtsgeschwindigkeit
+  min_speed_kmh: -20.0         # [km/h] Maximale Rückwärtsgeschwindigkeit
+  max_accel: 1.8               # [m/s^2] Maximale Längsbeschleunigung
+  max_curvature: 0.2278        # [1/m] Maximale Bahnkrümmung (1 / 4.39 m)
+
+inflation:
+  enabled: true
+  hard_margin_m: 0.30          # [m] Harter Sicherheitsabstand (Kollisionsgrenze)
+  soft_margin_m: 1.20          # [m] Weiche Inflationszone (Kostenfeld für Abstandshaltung)
+  use_multi_disk_footprint: true
+  num_footprint_disks: 3       # 3-Kreis-Approximation des 2D-Planar-Fahrzeugs
+  pedestrian_radius_m: 0.40    # [m] Körperradius Fußgänger
+  pedestrian_safety_margin_m: 1.15  # [m] Inflations-Sicherheitszone um Fußgänger
+  dynamic_vehicle_margin_m: 0.65    # [m] Inflations-Sicherheitszone um andere Fahrzeuge
+  velocity_lookahead_time_s: 0.65   # [s] Geschwindigkeitsabhängige Vorwärts-Inflation
+  soft_cost_weight: 6.0        # Gewichtungsfaktor für weiche Inflationszone
+
+planner:
+  star: true
+  connector: "reeds_shepp"     # "reeds_shepp" | "dubins" | "euclidean"
+  max_iterations: 1500
+  step_size: 14.0
+  goal_tolerance: 1.5
+  rewire_radius: 20.0
+  goal_sample_rate: 0.12
+  goal_orientation_bias: 0.15
+  seed: 42
+  realtime:
+    enabled: true
+    lookahead_distance_m: 18.0
+    prediction_horizon_s: 4.5
+    lateral_offsets_m: [-4.5, -3.5, -2.5, -1.6, 1.6, 2.5, 3.5, 4.5]
+    replan_clearance_trigger_m: 0.45
+    yield_stop_buffer_m: 2.5
+
+mpc:
+  horizon: 14                  # Prädiktionshorizont T (Schritte, 14 * 0.2s = 2.8s -> ~10m Vorausblick)
+  dt: 0.2                      # [s] Abtastzeit des MPC
+  target_speed_kmh: 11.0       # [km/h] Zielgeschwindigkeit
+  Q_diag: [4.5, 4.5, 2.5, 4.0] # Zustandsgewichtung [x, y, v, yaw]
+  Qf_diag: [6.0, 6.0, 2.0, 4.5] # Endzustandsgewichtung [x, y, v, yaw]
+  R_diag: [0.01, 0.25]         # Stellgrößen-Gewichtung [a, delta]
+  Rd_diag: [0.02, 1.50]        # Stellgrößenänderungs-Gewichtung [da, ddelta] für sanfte Lenkaktuatorik
+  dynamic_obstacle_weight: 10.0 # Abstoßungsgewicht gegenüber bewegten Hindernissen
+  dist_stop: 0.65              # [m] Zieltoleranz zum Anhalten
+  speed_stop: 0.15             # [m/s] Geschwindigkeitsschwelle am Ziel
+  time_max: 120.0              # [s] Maximale Simulationsdauer
+  iter_max: 4                  # Max. SQP-Iterationen pro Zeitschritt
+  du_res: 0.08                 # Konvergenzschwelle für SQP
+  search_window: 18
+
+visualization:
+  fps: 15
+  playback_speed: 1.2
+  dpi: 90
+  closeup_radius_m: 9.0
+  max_frames: 140
+  show_inflation_zones: true
+  show_dynamic_predictions: true
+  show_mpc_horizon: true
+  show_steer_rays: true

@@ -1,0 +1,28 @@
+scenario:
+  name: "Street_Scenario"
+  width: 60.0
+  height: 50.0
+  boundary_collision: false
+  start:
+    x: 18.0
+    y: 5.0
+    yaw_deg: 90.0
+  goal:
+    x: 52.5
+    y: 45.0
+    yaw_deg: 90.0
+  static_obstacles:
+    rectangles:
+      - {width: 10.5, height: 22.5, bottom_left: [0.0, 0.0]}
+      - {width: 10.5, height: 25.0, bottom_left: [0.0, 37.0]}
+      - {width: 20.0, height: 22.5, bottom_left: [25.0, 0.0]}
+      - {width: 20.0, height: 25.0, bottom_left: [25.0, 37.0]}
+    polygons: []
+  dynamic_obstacles: []
+
+planner:
+  star: true
+  connector: "reeds_shepp"
+  max_iterations: 1500
+  step_size: 12.0
+

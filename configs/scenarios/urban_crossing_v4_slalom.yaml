@@ -1,0 +1,100 @@
+# =============================================================================
+# Scenario Variant 4: Urban Crossing V4 — Multi-Vehicle Sequential Slalom
+# =============================================================================
+
+scenario:
+  name: "Urban_Crossing_V4_Multi_Vehicle_Slalom"
+  width: 60.0
+  height: 50.0
+  boundary_collision: false
+  start:
+    x: 18.0
+    y: 5.0
+    yaw_deg: 90.0
+  goal:
+    x: 52.5
+    y: 45.0
+    yaw_deg: 90.0
+  static_obstacles:
+    rectangles:
+      - {width: 10.5, height: 22.5, bottom_left: [0.0, 0.0]}
+      - {width: 10.5, height: 25.0, bottom_left: [0.0, 37.0]}
+      - {width: 20.0, height: 22.5, bottom_left: [25.0, 0.0]}
+      - {width: 20.0, height: 25.0, bottom_left: [25.0, 37.0]}
+    polygons: []
+  dynamic_obstacles:
+    # Stage 1: Slow van on right side of entry street -> Ego bypasses LEFT
+    - id: "car_van_1"
+      kind: "vehicle"
+      start: [21.6, 13.5]
+      yaw_deg: 90.0
+      speed: 1.15
+      motion_mode: "waypoints"
+      waypoints:
+        - [21.6, 13.5]
+        - [21.6, 24.5]
+        - [42.0, 24.5]
+      length: 4.4
+      width: 1.90
+      safety_margin: 0.45
+
+    # Stage 2: Slow taxi on north side of avenue -> Ego bypasses SOUTH/RIGHT
+    - id: "car_taxi_2"
+      kind: "vehicle"
+      start: [28.0, 33.2]
+      yaw_deg: 0.0
+      speed: 1.25
+      motion_mode: "waypoints"
+      waypoints:
+        - [28.0, 33.2]
+        - [43.0, 33.2]
+        - [43.0, 24.5]
+      length: 4.4
+      width: 1.90
+      safety_margin: 0.45
+
+    # Stage 3: Pedestrian near eastern exit -> Ego threads cleanly into exit street
+    - id: "ped_exit_3"
+      kind: "pedestrian"
+      start: [47.5, 34.0]
+      yaw_deg: 180.0
+      speed: 0.65
+      motion_mode: "waypoints"
+      waypoints:
+        - [47.5, 34.0]
+        - [45.5, 34.0]
+        - [45.5, 24.0]
+      radius: 0.42
+      safety_margin: 0.85
+
+inflation:
+  enabled: true
+  hard_margin_m: 0.30
+  soft_margin_m: 1.15
+  use_multi_disk_footprint: true
+  num_footprint_disks: 3
+  pedestrian_radius_m: 0.42
+  pedestrian_safety_margin_m: 0.85
+  dynamic_vehicle_margin_m: 0.45
+  velocity_lookahead_time_s: 0.45
+  soft_cost_weight: 6.0
+
+planner:
+  star: true
+  connector: "dubins"
+  max_iterations: 600
+  step_size: 14.0
+  realtime:
+    enabled: true
+    lookahead_distance_m: 17.0
+    prediction_horizon_s: 4.2
+    lateral_offsets_m: [2.8, 3.6, 4.4, -2.6, -3.4, -4.2]
+    replan_clearance_trigger_m: 0.35
+    yield_stop_buffer_m: 2.2
+
+mpc:
+  horizon: 14
+  dt: 0.2
+  target_speed_kmh: 13.5
+  time_max: 80.0
+

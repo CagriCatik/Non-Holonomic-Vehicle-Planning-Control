@@ -1,0 +1,171 @@
+Metadata-Version: 2.4
+Name: non-holonomic-vehicle-planning
+Version: 1.0.0
+Summary: Non-holonomic vehicle path planning, MPC trajectory tracking, actuator dynamics, and 2D simulation.
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: numpy>=1.26
+Requires-Dist: scipy>=1.11
+Requires-Dist: matplotlib>=3.8
+Requires-Dist: pillow>=10.0
+Requires-Dist: shapely>=2.0
+Requires-Dist: cvxpy>=1.4
+Requires-Dist: PyYAML>=6.0
+Provides-Extra: test
+Requires-Dist: pytest>=8.0; extra == "test"
+
+# Non-Holonomic Vehicle Planning & Control
+
+![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
+![Motion planning](https://img.shields.io/badge/Motion%20planning-RRT%2A-5B8DEF)
+![Controller](https://img.shields.io/badge/Controller-Linear%20MPC-8A63D2)
+![Status](https://img.shields.io/badge/Status-Active%20development-orange)
+
+A Python toolkit for non-holonomic vehicle path planning, trajectory tracking, and animated 2D simulation. It combines Dubins and Reeds–Shepp motion planning, RRT*, real-time obstacle avoidance, an MPC controller, and vehicle-level steering and drive actuator dynamics.
+
+> GitHub repository-specific badges (stars, issues, and Actions status) can be added once the project has a GitHub repository.
+
+## Simulation previews
+
+### Street navigation — Reeds–Shepp
+
+![Street navigation simulation](plots/Street_Scenario_ReedsShepp.gif)
+
+![Street navigation summary plot](plots/Street_Scenario_ReedsShepp.png)
+
+### Parallel parking — Reeds–Shepp
+
+![Parallel parking simulation](plots/ParallelParking_Scenario_ReedShepp.gif)
+
+![Parallel parking summary plot](plots/ParallelParking_Scenario_ReedShepp.png)
+
+The `plots/` directory contains generated scenario animations, summary dashboards, and (when enabled) RRT* tree-growth animations. Run the benchmark below to regenerate the complete set.
+
+## Features
+
+- **Non-holonomic path planning:** Dubins and Reeds–Shepp connectors with RRT* search and rewiring.
+- **Vehicle geometry:** Configurable dimensions and footprint collision checks for a kinematic bicycle model.
+- **Real-time obstacle handling:** Local bypass planning and pedestrian yield-and-stop behavior for dynamic obstacles.
+- **MPC trajectory tracking:** Cusp-aware linear MPC with steering and acceleration actuator lag, steering-rate limits, and steering-acceleration limits.
+- **Ackermann steering visualization:** Individually rendered wheels with inner/outer front-wheel steering angles.
+- **Scenario configuration:** Built-in scenarios, YAML configuration, and a Python scenario builder.
+- **Plots and animations:** Static telemetry dashboards, simulation GIFs, and RRT* tree-growth GIFs.
+
+## Requirements
+
+- Python 3.10 or newer
+- Dependencies are declared in [`pyproject.toml`](pyproject.toml)
+
+## Installation
+
+From the project directory:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[test]"
+```
+
+## Run scenarios
+
+Run all registered scenarios and generate plots and animations in `plots/`:
+
+```bash
+python main.py --scenario all
+```
+
+The equivalent benchmark script is:
+
+```bash
+python examples/run_all_scenarios.py
+```
+
+Run a single scenario:
+
+```bash
+python main.py --scenario urban_v3
+python main.py --scenario dynamic_overtaking_traffic
+python main.py --scenario parallel_parking_reeds_shepp
+```
+
+Available scenario aliases include:
+
+| Category | Scenario aliases |
+| --- | --- |
+| Urban crossing | `urban_v1`, `urban_v2`, `urban_v3`, `urban_v4`, `urban_v5` |
+| Dynamic traffic | `dynamic_overtaking_traffic` |
+| Street | `street_reeds_shepp`, `street_dubins` |
+| Parallel parking | `parallel_parking_reeds_shepp`, `parallel_parking_dubins` |
+| Parking lot | `parking_reeds_shepp`, `parking_dubins` |
+
+Use `--no-gif` to produce summary plots without animations, or `--output-dir PATH` to choose another output directory:
+
+```bash
+python main.py --scenario urban_v3 --no-gif
+python main.py --scenario all --output-dir ./artifacts
+```
+
+## Configuration
+
+The master configuration is [`configs/default.yaml`](configs/default.yaml). It contains vehicle dimensions and actuator parameters, obstacle inflation settings, planner options, MPC tuning, and visualization settings.
+
+Scenario-specific YAML files are in [`configs/scenarios/`](configs/scenarios/). Pass a custom configuration with:
+
+```bash
+python main.py --scenario urban_v3 --config configs/default.yaml
+```
+
+## Create a custom scenario
+
+```python
+from non_holonomic_vehicle_planning import ScenarioCreator, load_or_plan_scenario, run_simulation
+
+scenario_yaml = "configs/scenarios/custom_crossing.yaml"
+
+creator = (
+    ScenarioCreator("Custom_Crossing", width=60.0, height=36.0)
+    .set_start_goal((6.5, 13.5), 0.0, (53.0, 14.5), 0.0)
+    .add_wall(bottom_left=(0.0, 0.0), width=60.0, height=6.0)
+    .add_wall(bottom_left=(0.0, 30.0), width=60.0, height=6.0)
+    .add_moving_vehicle(
+        "lead_car",
+        start=(20.0, 13.5),
+        yaw_deg=0.0,
+        speed=0.35,
+        waypoints=[(20.0, 13.5), (26.0, 13.5)],
+    )
+    .add_pedestrian(
+        "crosswalk_pedestrian",
+        start=(38.0, 8.5),
+        goal=(38.0, 26.5),
+        speed=1.25,
+    )
+)
+
+creator.to_yaml(scenario_yaml)
+scenario, spec = load_or_plan_scenario(scenario_yaml)
+run_simulation(scenario, spec.key, animate=True)
+```
+
+See [`examples/create_custom_scenario.py`](examples/create_custom_scenario.py) for the complete scenario-builder API.
+
+## Run tests
+
+```bash
+python -m pytest
+```
+
+## Project layout
+
+```text
+configs/                         YAML defaults and scenario definitions
+examples/                        Benchmark and custom-scenario examples
+plots/                           Generated PNG dashboards and GIF animations
+src/non_holonomic_vehicle_planning/
+  control/                       Kinematic model and MPC
+  planning/                      Dubins, Reeds–Shepp, and RRT*
+  scenarios/                     Scenario catalog and builder
+  simulation/                    Closed-loop simulation runner
+  visualization/                 Plot and animation generation
+tests/                           Project test suite
+```

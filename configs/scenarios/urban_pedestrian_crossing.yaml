@@ -1,0 +1,118 @@
+# =============================================================================
+# Scenario Variant 1: Urban Pedestrian Crossing — Left-Side Overtake & Crosswalk
+# =============================================================================
+
+scenario:
+  name: "Urban_Pedestrian_Crossing_RealTime"
+  width: 60.0
+  height: 50.0
+  boundary_collision: false
+  start:
+    x: 18.0
+    y: 5.0
+    yaw_deg: 90.0
+  goal:
+    x: 52.5
+    y: 45.0
+    yaw_deg: 90.0
+  static_obstacles:
+    rectangles:
+      - {width: 10.5, height: 22.5, bottom_left: [0.0, 0.0]}
+      - {width: 10.5, height: 25.0, bottom_left: [0.0, 37.0]}
+      - {width: 20.0, height: 22.5, bottom_left: [25.0, 0.0]}
+      - {width: 20.0, height: 25.0, bottom_left: [25.0, 37.0]}
+    polygons: []
+  dynamic_obstacles:
+    # 1. Slow delivery van driving along the right curb and turning East into the avenue
+    - id: "car_delivery_van"
+      kind: "vehicle"
+      start: [21.5, 13.5]
+      yaw_deg: 90.0
+      speed: 1.35
+      motion_mode: "waypoints"
+      waypoints:
+        - [21.5, 13.5]
+        - [21.5, 25.0]
+        - [43.0, 25.0]
+        - [56.0, 25.0]
+      length: 4.4
+      width: 1.90
+      safety_margin: 0.45
+
+    # 2. Oncoming traffic car driving West along the upper avenue lane and turning South
+    - id: "car_avenue_traffic"
+      kind: "vehicle"
+      start: [44.0, 34.8]
+      yaw_deg: 180.0
+      speed: 2.35
+      motion_mode: "waypoints"
+      waypoints:
+        - [44.0, 34.8]
+        - [13.5, 34.8]
+        - [13.5, 4.0]
+      length: 4.5
+      width: 2.0
+      safety_margin: 0.50
+
+    # 3. Pedestrian calmly finishing crossing onto the eastern sidewalk
+    - id: "ped_crosswalk_west"
+      kind: "pedestrian"
+      start: [19.8, 22.5]
+      yaw_deg: 0.0
+      speed: 0.65
+      motion_mode: "waypoints"
+      waypoints:
+        - [19.8, 22.5]
+        - [24.0, 22.5]
+        - [24.0, 10.0]
+      radius: 0.42
+      safety_margin: 0.85
+
+    # 4. Pedestrian calmly crossing the avenue crosswalk onto the southern sidewalk
+    - id: "ped_avenue_crossing"
+      kind: "pedestrian"
+      start: [34.5, 29.5]
+      yaw_deg: -90.0
+      speed: 0.65
+      motion_mode: "waypoints"
+      waypoints:
+        - [34.5, 29.5]
+        - [34.5, 23.5]
+        - [44.0, 23.5]
+      radius: 0.42
+      safety_margin: 0.90
+
+inflation:
+  enabled: true
+  hard_margin_m: 0.30
+  soft_margin_m: 1.15
+  use_multi_disk_footprint: true
+  num_footprint_disks: 3
+  pedestrian_radius_m: 0.42
+  pedestrian_safety_margin_m: 0.90
+  dynamic_vehicle_margin_m: 0.50
+  velocity_lookahead_time_s: 0.45
+  soft_cost_weight: 6.0
+
+planner:
+  star: true
+  connector: "dubins"
+  max_iterations: 600
+  step_size: 14.0
+  realtime:
+    enabled: true
+    lookahead_distance_m: 17.0
+    prediction_horizon_s: 4.2
+    lateral_offsets_m: [2.8, 3.6, 4.4, 5.2, -2.8, -3.6]
+    replan_clearance_trigger_m: 0.35
+    yield_stop_buffer_m: 2.2
+
+mpc:
+  horizon: 14
+  dt: 0.2
+  target_speed_kmh: 13.5
+  Q_diag: [4.5, 4.5, 2.5, 4.0]
+  Qf_diag: [6.0, 6.0, 2.0, 4.5]
+  R_diag: [0.01, 0.15]
+  Rd_diag: [0.01, 0.15]
+  time_max: 80.0

@@ -1,0 +1,112 @@
+# =============================================================================
+# Scenario Variant 3: Urban Crossing V3 — Crosswalk Yield-and-Go & Avenue Bypass
+# =============================================================================
+
+scenario:
+  name: "Urban_Crossing_V3_Pedestrian_Yield"
+  width: 60.0
+  height: 50.0
+  boundary_collision: false
+  start:
+    x: 18.0
+    y: 5.0
+    yaw_deg: 90.0
+  goal:
+    x: 52.5
+    y: 45.0
+    yaw_deg: 90.0
+  static_obstacles:
+    rectangles:
+      - {width: 10.5, height: 22.5, bottom_left: [0.0, 0.0]}
+      - {width: 10.5, height: 25.0, bottom_left: [0.0, 37.0]}
+      - {width: 20.0, height: 22.5, bottom_left: [25.0, 0.0]}
+      - {width: 20.0, height: 25.0, bottom_left: [25.0, 37.0]}
+    polygons: []
+  dynamic_obstacles:
+    # 1. Pedestrian pair crossing the narrow entry street (triggers protective YIELD_STOP then auto-resume)
+    - id: "ped_crosswalk_1"
+      kind: "pedestrian"
+      start: [16.5, 18.5]
+      yaw_deg: 0.0
+      speed: 0.85
+      motion_mode: "waypoints"
+      waypoints:
+        - [16.5, 18.5]
+        - [24.2, 18.5]
+        - [24.2, 6.0]
+      radius: 0.42
+      safety_margin: 0.90
+
+    - id: "ped_crosswalk_2"
+      kind: "pedestrian"
+      start: [19.2, 20.0]
+      yaw_deg: 0.0
+      speed: 0.85
+      motion_mode: "waypoints"
+      waypoints:
+        - [19.2, 20.0]
+        - [24.2, 20.0]
+        - [24.2, 8.0]
+      radius: 0.42
+      safety_margin: 0.90
+
+    # 2. Slow vehicle cruising East along the southern avenue lane (overtaken via AVOID_BYPASS)
+    - id: "car_avenue_cruiser"
+      kind: "vehicle"
+      start: [26.5, 26.5]
+      yaw_deg: 0.0
+      speed: 1.20
+      motion_mode: "waypoints"
+      waypoints:
+        - [26.5, 26.5]
+        - [56.0, 26.5]
+      length: 4.5
+      width: 1.95
+      safety_margin: 0.45
+
+    # 3. Oncoming traffic vehicle driving West along the northern avenue lane
+    - id: "car_oncoming_north"
+      kind: "vehicle"
+      start: [45.0, 35.0]
+      yaw_deg: 180.0
+      speed: 2.30
+      motion_mode: "waypoints"
+      waypoints:
+        - [45.0, 35.0]
+        - [13.5, 35.0]
+        - [13.5, 4.0]
+      length: 4.5
+      width: 2.0
+      safety_margin: 0.50
+
+inflation:
+  enabled: true
+  hard_margin_m: 0.30
+  soft_margin_m: 1.15
+  use_multi_disk_footprint: true
+  num_footprint_disks: 3
+  pedestrian_radius_m: 0.42
+  pedestrian_safety_margin_m: 0.90
+  dynamic_vehicle_margin_m: 0.45
+  velocity_lookahead_time_s: 0.45
+  soft_cost_weight: 6.0
+
+planner:
+  star: true
+  connector: "dubins"
+  max_iterations: 600
+  step_size: 14.0
+  realtime:
+    enabled: true
+    lookahead_distance_m: 16.0
+    prediction_horizon_s: 4.0
+    lateral_offsets_m: [2.8, 3.6, 4.4, -2.6, -3.4]
+    replan_clearance_trigger_m: 0.35
+    yield_stop_buffer_m: 2.2
+
+mpc:
+  horizon: 14
+  dt: 0.2
+  target_speed_kmh: 13.5
+  time_max: 80.0
+

@@ -1,0 +1,96 @@
+# =============================================================================
+# Scenario: Dynamic Boulevard Overtaking & Pedestrian Avoidance
+# =============================================================================
+
+scenario:
+  name: "Dynamic_Overtaking_Traffic_RealTime"
+  width: 60.0
+  height: 36.0
+  boundary_collision: false
+  start:
+    x: 6.5
+    y: 13.5
+    yaw_deg: 0.0
+  goal:
+    x: 53.0
+    y: 14.5
+    yaw_deg: 0.0
+  static_obstacles:
+    rectangles:
+      - {width: 60.0, height: 6.0, bottom_left: [0.0, 0.0]}
+      - {width: 60.0, height: 6.0, bottom_left: [0.0, 30.0]}
+    polygons: []
+  dynamic_obstacles:
+    # 1. Slower lead vehicle driving along the right lane (overtaken by the faster ego vehicle)
+    - id: "car_slow_lead"
+      kind: "vehicle"
+      start: [17.5, 12.8]
+      yaw_deg: 0.0
+      speed: 1.15
+      motion_mode: "waypoints"
+      waypoints:
+        - [17.5, 12.8]
+        - [42.0, 12.8]
+        - [46.0, 9.2]
+        - [56.0, 9.2]
+      length: 4.5
+      width: 2.0
+      safety_margin: 0.55
+
+    # 2. Oncoming traffic vehicle driving West in the upper lane
+    - id: "car_oncoming_west"
+      kind: "vehicle"
+      start: [55.0, 24.5]
+      yaw_deg: 180.0
+      speed: 2.50
+      motion_mode: "waypoints"
+      waypoints:
+        - [55.0, 24.5]
+        - [5.0, 24.5]
+      length: 4.5
+      width: 2.0
+      safety_margin: 0.60
+
+    # 3. Pedestrian calmly crossing the boulevard towards the southern sidewalk
+    - id: "ped_jaywalker"
+      kind: "pedestrian"
+      start: [38.5, 19.0]
+      yaw_deg: -90.0
+      speed: 0.62
+      motion_mode: "waypoints"
+      waypoints:
+        - [38.5, 19.0]
+        - [38.5, 7.5]
+        - [49.0, 7.5]
+      radius: 0.42
+      safety_margin: 1.00
+
+inflation:
+  enabled: true
+  hard_margin_m: 0.30
+  soft_margin_m: 1.10
+  use_multi_disk_footprint: true
+  num_footprint_disks: 3
+  pedestrian_radius_m: 0.42
+  pedestrian_safety_margin_m: 1.00
+  dynamic_vehicle_margin_m: 0.55
+  velocity_lookahead_time_s: 0.45
+
+planner:
+  star: true
+  connector: "dubins"
+  max_iterations: 800
+  step_size: 14.0
+  realtime:
+    enabled: true
+    lookahead_distance_m: 18.0
+    prediction_horizon_s: 4.5
+    lateral_offsets_m: [3.2, 4.2, 5.2, -3.0, -4.0]
+    replan_clearance_trigger_m: 0.40
+    yield_stop_buffer_m: 2.2
+
+mpc:
+  horizon: 14
+  dt: 0.2
+  target_speed_kmh: 13.5
+  time_max: 80.0

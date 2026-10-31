@@ -1,0 +1,2 @@
+[console_scripts]
+nh-rrt = non_holonomic_vehicle_planning.cli:main

@@ -1,0 +1,114 @@
+# =============================================================================
+# Scenario Variant 2: Urban Crossing V2 — Right-Side Bypass & Turning Traffic
+# =============================================================================
+
+scenario:
+  name: "Urban_Crossing_V2_Right_Bypass"
+  width: 60.0
+  height: 50.0
+  boundary_collision: false
+  start:
+    x: 18.0
+    y: 5.0
+    yaw_deg: 90.0
+  goal:
+    x: 52.5
+    y: 45.0
+    yaw_deg: 90.0
+  static_obstacles:
+    rectangles:
+      - {width: 10.5, height: 22.5, bottom_left: [0.0, 0.0]}
+      - {width: 10.5, height: 25.0, bottom_left: [0.0, 37.0]}
+      - {width: 20.0, height: 22.5, bottom_left: [25.0, 0.0]}
+      - {width: 20.0, height: 25.0, bottom_left: [25.0, 37.0]}
+    polygons: []
+  dynamic_obstacles:
+    # 1. Slow municipal vehicle driving on the left side of the corridor -> forces Right-Side Bypass
+    - id: "car_street_sweeper"
+      kind: "vehicle"
+      start: [15.2, 14.0]
+      yaw_deg: 90.0
+      speed: 1.25
+      motion_mode: "waypoints"
+      waypoints:
+        - [15.2, 14.0]
+        - [15.2, 34.5]
+        - [36.0, 34.5]
+      length: 4.4
+      width: 1.95
+      safety_margin: 0.45
+
+    # 2. Pedestrian walking West onto the left sidewalk
+    - id: "ped_west_sidewalk"
+      kind: "pedestrian"
+      start: [16.5, 24.0]
+      yaw_deg: 180.0
+      speed: 0.62
+      motion_mode: "waypoints"
+      waypoints:
+        - [16.5, 24.0]
+        - [11.5, 24.0]
+        - [11.5, 35.5]
+      radius: 0.42
+      safety_margin: 0.85
+
+    # 3. Faster traffic car driving East along the avenue and turning North toward the exit
+    - id: "car_east_avenue"
+      kind: "vehicle"
+      start: [26.0, 34.5]
+      yaw_deg: 0.0
+      speed: 2.40
+      motion_mode: "waypoints"
+      waypoints:
+        - [26.0, 34.5]
+        - [48.0, 34.5]
+        - [48.0, 48.0]
+      length: 4.5
+      width: 2.0
+      safety_margin: 0.50
+
+    # 4. Pedestrian crossing near the eastern avenue corner onto the south sidewalk
+    - id: "ped_east_corner"
+      kind: "pedestrian"
+      start: [39.5, 28.0]
+      yaw_deg: -90.0
+      speed: 0.65
+      motion_mode: "waypoints"
+      waypoints:
+        - [39.5, 28.0]
+        - [39.5, 23.5]
+        - [28.0, 23.5]
+      radius: 0.42
+      safety_margin: 0.85
+
+inflation:
+  enabled: true
+  hard_margin_m: 0.30
+  soft_margin_m: 1.15
+  use_multi_disk_footprint: true
+  num_footprint_disks: 3
+  pedestrian_radius_m: 0.42
+  pedestrian_safety_margin_m: 0.85
+  dynamic_vehicle_margin_m: 0.45
+  velocity_lookahead_time_s: 0.45
+  soft_cost_weight: 6.0
+
+planner:
+  star: true
+  connector: "dubins"
+  max_iterations: 600
+  step_size: 14.0
+  realtime:
+    enabled: true
+    lookahead_distance_m: 17.0
+    prediction_horizon_s: 4.2
+    lateral_offsets_m: [-2.4, -3.2, 2.8, 3.6, 4.4]
+    replan_clearance_trigger_m: 0.35
+    yield_stop_buffer_m: 2.2
+
+mpc:
+  horizon: 14
+  dt: 0.2
+  target_speed_kmh: 13.5
+  time_max: 80.0
+

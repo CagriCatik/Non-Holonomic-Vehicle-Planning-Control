@@ -1,0 +1,142 @@
+# =============================================================================
+# Scenario Variant 5: Urban Crossing V5 — Dense Rush-Hour (3 Cars & 3 Pedestrians)
+# =============================================================================
+
+scenario:
+  name: "Urban_Crossing_V5_Rush_Hour"
+  width: 60.0
+  height: 50.0
+  boundary_collision: false
+  start:
+    x: 18.0
+    y: 5.0
+    yaw_deg: 90.0
+  goal:
+    x: 52.5
+    y: 45.0
+    yaw_deg: 90.0
+  static_obstacles:
+    rectangles:
+      - {width: 10.5, height: 22.5, bottom_left: [0.0, 0.0]}
+      - {width: 10.5, height: 25.0, bottom_left: [0.0, 37.0]}
+      - {width: 20.0, height: 22.5, bottom_left: [25.0, 0.0]}
+      - {width: 20.0, height: 25.0, bottom_left: [25.0, 37.0]}
+    polygons: []
+  dynamic_obstacles:
+    # 1. Delivery van on right side of entry street
+    - id: "car_rush_1"
+      kind: "vehicle"
+      start: [21.6, 14.0]
+      yaw_deg: 90.0
+      speed: 1.35
+      motion_mode: "waypoints"
+      waypoints:
+        - [21.6, 14.0]
+        - [21.6, 25.0]
+        - [56.0, 25.0]
+      length: 4.4
+      width: 1.90
+      safety_margin: 0.45
+
+    # 2. Oncoming traffic car in northern avenue lane turning South
+    - id: "car_rush_2"
+      kind: "vehicle"
+      start: [43.0, 35.0]
+      yaw_deg: 180.0
+      speed: 2.30
+      motion_mode: "waypoints"
+      waypoints:
+        - [43.0, 35.0]
+        - [13.2, 35.0]
+        - [13.2, 4.0]
+      length: 4.4
+      width: 1.95
+      safety_margin: 0.45
+
+    # 3. Eastbound car exiting ahead up the north-east street
+    - id: "car_rush_3"
+      kind: "vehicle"
+      start: [35.0, 30.5]
+      yaw_deg: 0.0
+      speed: 2.50
+      motion_mode: "waypoints"
+      waypoints:
+        - [35.0, 30.5]
+        - [49.0, 30.5]
+        - [49.0, 48.0]
+      length: 4.4
+      width: 1.90
+      safety_margin: 0.45
+
+    # 4. Pedestrian 1 on west sidewalk
+    - id: "ped_rush_1"
+      kind: "pedestrian"
+      start: [14.5, 24.5]
+      yaw_deg: 180.0
+      speed: 0.65
+      motion_mode: "waypoints"
+      waypoints:
+        - [14.5, 24.5]
+        - [11.5, 24.5]
+        - [11.5, 35.5]
+      radius: 0.42
+      safety_margin: 0.85
+
+    # 5. Pedestrian 2 crossing central avenue onto south sidewalk
+    - id: "ped_rush_2"
+      kind: "pedestrian"
+      start: [33.5, 28.5]
+      yaw_deg: -90.0
+      speed: 0.65
+      motion_mode: "waypoints"
+      waypoints:
+        - [33.5, 28.5]
+        - [33.5, 23.5]
+        - [44.0, 23.5]
+      radius: 0.42
+      safety_margin: 0.85
+
+    # 6. Pedestrian 3 walking along east sidewalk
+    - id: "ped_rush_3"
+      kind: "pedestrian"
+      start: [56.5, 32.0]
+      yaw_deg: 90.0
+      speed: 0.65
+      motion_mode: "waypoints"
+      waypoints:
+        - [56.5, 32.0]
+        - [56.5, 46.0]
+      radius: 0.42
+      safety_margin: 0.85
+
+inflation:
+  enabled: true
+  hard_margin_m: 0.30
+  soft_margin_m: 1.15
+  use_multi_disk_footprint: true
+  num_footprint_disks: 3
+  pedestrian_radius_m: 0.42
+  pedestrian_safety_margin_m: 0.85
+  dynamic_vehicle_margin_m: 0.45
+  velocity_lookahead_time_s: 0.45
+  soft_cost_weight: 6.0
+
+planner:
+  star: true
+  connector: "dubins"
+  max_iterations: 600
+  step_size: 14.0
+  realtime:
+    enabled: true
+    lookahead_distance_m: 17.0
+    prediction_horizon_s: 4.2
+    lateral_offsets_m: [2.8, 3.6, 4.4, 5.2, -2.6, -3.4]
+    replan_clearance_trigger_m: 0.35
+    yield_stop_buffer_m: 2.2
+
+mpc:
+  horizon: 14
+  dt: 0.2
+  target_speed_kmh: 13.5
+  time_max: 80.0
+

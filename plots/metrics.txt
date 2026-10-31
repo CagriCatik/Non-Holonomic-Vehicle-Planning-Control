@@ -1,0 +1,95 @@
+Street_Scenario_ReedsShepp:
+  Simulation Time [s]:               32.2616
+  Length of Planned Trajectory [m]:  57.4019
+  Length of Simulated Trajectory [m]:4.9713
+  Max Cross-Track Error [m]:         0.8186
+  Real-Time Replans Triggered:       0
+  Goal Reached:                      False
+
+Street_Scenario_Dubin:
+  Simulation Time [s]:               39.3797
+  Length of Planned Trajectory [m]:  57.9522
+  Length of Simulated Trajectory [m]:58.3925
+  Max Cross-Track Error [m]:         1.2192
+  Real-Time Replans Triggered:       0
+  Goal Reached:                      False
+
+ParallelParking_Scenario_ReedShepp:
+  Simulation Time [s]:               10.0964
+  Length of Planned Trajectory [m]:  25.0801
+  Length of Simulated Trajectory [m]:25.4061
+  Max Cross-Track Error [m]:         1.1853
+  Real-Time Replans Triggered:       0
+  Goal Reached:                      True
+
+ParallelParking_Scenario_Dubin:
+  Simulation Time [s]:               13.2767
+  Length of Planned Trajectory [m]:  29.2740
+  Length of Simulated Trajectory [m]:29.9507
+  Max Cross-Track Error [m]:         0.6717
+  Real-Time Replans Triggered:       0
+  Goal Reached:                      True
+
+Parking_Scenario_ReedsShepp:
+  Simulation Time [s]:               8.9683
+  Length of Planned Trajectory [m]:  48.6216
+  Length of Simulated Trajectory [m]:48.2300
+  Max Cross-Track Error [m]:         0.2873
+  Real-Time Replans Triggered:       0
+  Goal Reached:                      True
+
+Parking_Scenario_Dubin:
+  Simulation Time [s]:               36.8682
+  Length of Planned Trajectory [m]:  48.9526
+  Length of Simulated Trajectory [m]:49.1946
+  Max Cross-Track Error [m]:         1.1357
+  Real-Time Replans Triggered:       0
+  Goal Reached:                      False
+
+Urban_Pedestrian_Crossing_RealTime:
+  Simulation Time [s]:               53.9936
+  Length of Planned Trajectory [m]:  70.7543
+  Length of Simulated Trajectory [m]:73.2878
+  Max Cross-Track Error [m]:         1.1525
+  Real-Time Replans Triggered:       2
+  Goal Reached:                      False
+
+Urban_Crossing_V2_Right_Bypass:
+  Simulation Time [s]:               24.3436
+  Length of Planned Trajectory [m]:  58.0058
+  Length of Simulated Trajectory [m]:60.6044
+  Max Cross-Track Error [m]:         1.1792
+  Real-Time Replans Triggered:       0
+  Goal Reached:                      True
+
+Urban_Crossing_V3_Pedestrian_Yield:
+  Simulation Time [s]:               31.8798
+  Length of Planned Trajectory [m]:  62.6257
+  Length of Simulated Trajectory [m]:65.5095
+  Max Cross-Track Error [m]:         1.1127
+  Real-Time Replans Triggered:       1
+  Goal Reached:                      True
+
+Urban_Crossing_V4_Multi_Vehicle_Slalom:
+  Simulation Time [s]:               31.6302
+  Length of Planned Trajectory [m]:  70.1545
+  Length of Simulated Trajectory [m]:71.3681
+  Max Cross-Track Error [m]:         0.9864
+  Real-Time Replans Triggered:       2
+  Goal Reached:                      True
+
+Urban_Crossing_V5_Rush_Hour:
+  Simulation Time [s]:               46.6355
+  Length of Planned Trajectory [m]:  70.1238
+  Length of Simulated Trajectory [m]:71.8609
+  Max Cross-Track Error [m]:         0.9823
+  Real-Time Replans Triggered:       2
+  Goal Reached:                      False
+
+Dynamic_Overtaking_Traffic_RealTime:
+  Simulation Time [s]:               67.8282
+  Length of Planned Trajectory [m]:  118.1401
+  Length of Simulated Trajectory [m]:139.4538
+  Max Cross-Track Error [m]:         4.6041
+  Real-Time Replans Triggered:       4
+  Goal Reached:                      False
